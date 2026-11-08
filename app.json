@@ -1,26 +1,36 @@
 {
   "expo": {
-    "name": "TaskManager",
+    "name": "Galaxy Task RPG",
     "slug": "task-manager-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       }
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#FF1493"
+        }
+      ]
+    ],
     "web": {
       "bundler": "metro"
     }
   }
 }
-

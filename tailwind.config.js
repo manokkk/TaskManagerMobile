@@ -5,16 +5,20 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: "#eef2ff",
-          100: "#e0e7ff",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca",
+        galaxy: {
+          void: "#000000",
+          obsidian: "#0B0B0B",
+          nebula: "#140710",
+          card: "#0F0A0D",
+          border: "#2E1122",
+          neonPink: "#FF1493",
+          hotPink: "#FF69B4",
+          softPink: "#FFB6C1",
+          deepPink: "#C71585",
+          mutedPink: "#8A3B68",
         },
       },
     },
   },
   plugins: [],
 };
-

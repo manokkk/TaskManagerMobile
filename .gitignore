@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Expo & Metro Bundler
+.expo/
+.expo-shared/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# NativeWind & Tailwind Cache
+.cache/
+
+# Native Builds & Signing Credentials
+android/
+ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Environment Variables & Secrets (Supabase / API Keys)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+
+# Debug & Package Manager Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+*.tsbuildinfo
+
+# OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

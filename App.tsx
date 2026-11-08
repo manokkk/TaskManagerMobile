@@ -1,282 +1,467 @@
 import "./global.css";
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
   SafeAreaView,
   FlatList,
   TouchableOpacity,
-  RefreshControl,
   TextInput,
   StatusBar,
+  RefreshControl,
   Modal,
   Alert,
+  StyleSheet,
 } from "react-native";
-import { taskApi } from "./src/services/api";
-import { Task, CreateTaskInput, TaskStatus } from "./src/types/task";
+import { GalaxyStateResponse, Task, TaskInput } from "./src/types/task";
+import { notificationService } from "./src/services/notifications";
+import { galaxyApi } from "./src/services/api";
+import { GalaxyHeader } from "./src/components/GalaxyHeader";
+import {
+  TaskFilter,
+  CategoryFilterValue,
+  StatusFilterValue,
+} from "./src/components/TaskFilter";
 import { TaskCard } from "./src/components/TaskCard";
-import { TaskFilter } from "./src/components/TaskFilter";
 import { CreateTaskModal } from "./src/components/CreateTaskModal";
+import { RankProgressionModal } from "./src/components/RankProgressionModal";
+
+/**
+ * Default empty placeholder rendered strictly while awaiting the first backend response.
+ * All authoritative EXP, level, cap, and rank computations happen on the backend.
+ */
+const EMPTY_SERVER_STATE: GalaxyStateResponse = {
+  tasks: [],
+  counts: {
+    All: 0,
+    Daily: 0,
+    Weekly: 0,
+    Monthly: 0,
+    Completed: 0,
+    Total: 0,
+  },
+  progress: {
+    totalExp: 0,
+    level: 1,
+    currentLevelExp: 0,
+    nextLevelCap: 100,
+    followingLevelCap: 150,
+    rank: "Rookie",
+    progressPercentage: 0,
+  },
+  metadata: {
+    expRewards: { Daily: 30, Weekly: 20, Monthly: 10 },
+    rankTiers: [],
+    sampleLevelCaps: [],
+  },
+};
 
 export default function App() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [serverState, setServerState] =
+    useState<GalaxyStateResponse>(EMPTY_SERVER_STATE);
   const [loading, setLoading] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [backendOnline, setBackendOnline] = useState(false);
+
+  const [selectedCategory, setSelectedCategory] =
+    useState<CategoryFilterValue>("All");
+  const [selectedStatus, setSelectedStatus] =
+    useState<StatusFilterValue>("All");
   const [searchQuery, setSearchQuery] = useState("");
+
   const [modalVisible, setModalVisible] = useState(false);
+  const [rankModalVisible, setRankModalVisible] = useState(false);
   const [apiConfigVisible, setApiConfigVisible] = useState(false);
-  const [apiUrlInput, setApiUrlInput] = useState(taskApi.getBaseUrl());
-  const [backendStatus, setBackendStatus] = useState<{
-    online: boolean;
-    message: string;
-  }>({
-    online: false,
-    message: "Checking server...",
-  });
+  const [apiUrlInput, setApiUrlInput] = useState(galaxyApi.getBaseUrl());
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [processingIds, setProcessingIds] = useState<Record<string, boolean>>(
+    {}
+  );
 
-  const checkConnectionAndLoad = async () => {
+  // Client-side UI debounce lock so rapid taps don't spam overlapping HTTP requests
+  const activeToggleLocksRef = useRef<Set<string>>(new Set());
+
+  const currentFilter = useCallback(
+    () => ({
+      category: selectedCategory,
+      status: selectedStatus,
+      search: searchQuery,
+    }),
+    [selectedCategory, selectedStatus, searchQuery]
+  );
+
+  const syncWithBackend = useCallback(async () => {
     setLoading(true);
-    const health = await taskApi.checkHealth();
-    setBackendStatus(health);
-    const data = await taskApi.getTasks();
-    setTasks(data);
-    setLoading(false);
-  };
+    try {
+      const health = await galaxyApi.checkHealth();
+      setBackendOnline(health.online);
+      if (health.online) {
+        const freshState = await galaxyApi.fetchState(currentFilter());
+        setServerState(freshState);
+      }
+    } catch {
+      setBackendOnline(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentFilter]);
 
+  // Initialize OS push permissions on mount
   useEffect(() => {
-    checkConnectionAndLoad();
+    let mounted = true;
+    notificationService.initializeAndRequestPermissions().then((granted) => {
+      if (mounted) setNotificationsEnabled(granted);
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const counts = useMemo(() => {
-    return {
-      all: tasks.length,
-      pending: tasks.filter((t) => t.status === "pending").length,
-      in_progress: tasks.filter((t) => t.status === "in_progress").length,
-      completed: tasks.filter((t) => t.status === "completed").length,
-    };
-  }, [tasks]);
+  // Re-fetch authoritative state from backend whenever filter/search changes
+  useEffect(() => {
+    syncWithBackend();
+  }, [syncWithBackend]);
 
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      const matchesStatus =
-        selectedStatus === "all" || task.status === selectedStatus;
-      const matchesSearch =
-        searchQuery.trim() === "" ||
-        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (task.description &&
-          task.description.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchesStatus && matchesSearch;
-    });
-  }, [tasks, selectedStatus, searchQuery]);
+  const handleSaveTask = useCallback(
+    async (input: TaskInput, existingTaskId?: string) => {
+      try {
+        if (existingTaskId) {
+          const currentTask = serverState.tasks.find(
+            (t) => t.id === existingTaskId
+          );
 
-  const handleToggleStatus = async (task: Task) => {
-    const nextStatus: TaskStatus =
-      task.status === "completed"
-        ? "pending"
-        : task.status === "pending"
-        ? "in_progress"
-        : "completed";
+          // 1. Update task on the authoritative backend
+          const { task: updatedTask, state: nextState } =
+            await galaxyApi.updateTask(existingTaskId, input, currentFilter());
 
-    // Optimistic update
-    setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t))
-    );
+          // 2. Reschedule local OS push notification using backend-returned task data
+          const newNotificationId =
+            await notificationService.rescheduleTaskNotification(
+              currentTask?.notificationId,
+              {
+                id: updatedTask.id,
+                title: updatedTask.title,
+                description: updatedTask.description,
+                category: updatedTask.category,
+                scheduledAt: updatedTask.scheduledAt,
+                expReward: updatedTask.expReward,
+              },
+              updatedTask.status === "Done"
+            );
 
-    try {
-      await taskApi.updateTask(task.id, { status: nextStatus });
-    } catch {
-      // Revert if error
-      setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t))
-      );
-    }
-  };
+          if (newNotificationId !== updatedTask.notificationId) {
+            const synced = await galaxyApi.syncNotificationId(
+              updatedTask.id,
+              newNotificationId,
+              currentFilter()
+            );
+            setServerState(synced.state);
+          } else {
+            setServerState(nextState);
+          }
+        } else {
+          // 1. Create task on the authoritative backend
+          const { task: createdTask, state: nextState } =
+            await galaxyApi.createTask(input, currentFilter());
 
-  const handleDeleteTask = async (id: number) => {
-    // Optimistic delete
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    try {
-      await taskApi.deleteTask(id);
-    } catch {
-      checkConnectionAndLoad();
-    }
-  };
+          // 2. Schedule local OS push notification using backend-assigned ID & EXP reward
+          const notificationId =
+            await notificationService.scheduleTaskNotification({
+              id: createdTask.id,
+              title: createdTask.title,
+              description: createdTask.description,
+              category: createdTask.category,
+              scheduledAt: createdTask.scheduledAt,
+              expReward: createdTask.expReward,
+            });
 
-  const handleCreateTask = async (input: CreateTaskInput) => {
-    try {
-      const newTask = await taskApi.createTask(input);
-      setTasks((prev) => [newTask, ...prev]);
-    } catch {
-      Alert.alert("Error", "Could not save task.");
-    }
-  };
+          if (notificationId) {
+            const synced = await galaxyApi.syncNotificationId(
+              createdTask.id,
+              notificationId,
+              currentFilter()
+            );
+            setServerState(synced.state);
+          } else {
+            setServerState(nextState);
+          }
+        }
+        setBackendOnline(true);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Could not reach authoritative backend.";
+        Alert.alert("Backend Error", message);
+      }
+    },
+    [serverState.tasks, currentFilter]
+  );
+
+  const handleToggleStatus = useCallback(
+    async (task: Task) => {
+      if (activeToggleLocksRef.current.has(task.id)) {
+        return;
+      }
+
+      activeToggleLocksRef.current.add(task.id);
+      setProcessingIds((prev) => ({ ...prev, [task.id]: true }));
+
+      try {
+        // 1. Execute status toggle & EXP/Level math exclusively on the backend
+        const { task: toggledTask, state: nextState } =
+          await galaxyApi.toggleTaskStatus(task.id, currentFilter());
+
+        // 2. Cancel or reschedule local OS push notification based on backend status
+        const updatedNotificationId =
+          await notificationService.rescheduleTaskNotification(
+            task.notificationId,
+            {
+              id: toggledTask.id,
+              title: toggledTask.title,
+              description: toggledTask.description,
+              category: toggledTask.category,
+              scheduledAt: toggledTask.scheduledAt,
+              expReward: toggledTask.expReward,
+            },
+            toggledTask.status === "Done"
+          );
+
+        if (updatedNotificationId !== toggledTask.notificationId) {
+          const synced = await galaxyApi.syncNotificationId(
+            toggledTask.id,
+            updatedNotificationId,
+            currentFilter()
+          );
+          setServerState(synced.state);
+        } else {
+          setServerState(nextState);
+        }
+        setBackendOnline(true);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to toggle mission on backend.";
+        Alert.alert("Backend Error", message);
+      } finally {
+        activeToggleLocksRef.current.delete(task.id);
+        setProcessingIds((prev) => {
+          const next = { ...prev };
+          delete next[task.id];
+          return next;
+        });
+      }
+    },
+    [currentFilter]
+  );
+
+  const handleDeleteTask = useCallback(
+    async (id: string) => {
+      try {
+        const { deletedTask, state: nextState } = await galaxyApi.deleteTask(
+          id,
+          currentFilter()
+        );
+        if (deletedTask.notificationId) {
+          await notificationService.cancelTaskNotification(
+            deletedTask.notificationId
+          );
+        }
+        setServerState(nextState);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to delete mission on backend.";
+        Alert.alert("Backend Error", message);
+      }
+    },
+    [currentFilter]
+  );
 
   const handleSaveApiUrl = () => {
-    taskApi.setBaseUrl(apiUrlInput);
+    galaxyApi.setBaseUrl(apiUrlInput);
     setApiConfigVisible(false);
-    checkConnectionAndLoad();
+    syncWithBackend();
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+    <SafeAreaView className="flex-1 bg-black">
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-      {/* Header */}
-      <View className="px-5 pt-4 pb-2">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-black text-slate-900 tracking-tight">
-              Task Flow
-            </Text>
-            <Text className="text-xs text-slate-500 mt-0.5 font-medium">
-              {counts.completed} of {counts.all} completed
-            </Text>
-          </View>
+      {/* RPG Level, EXP, & Rank Tier HUD (Rendered from Backend State) */}
+      <GalaxyHeader
+        progress={serverState.progress}
+        completedCount={serverState.counts.Completed}
+        totalCount={serverState.counts.Total}
+        notificationsEnabled={notificationsEnabled}
+        backendOnline={backendOnline}
+        onPressRankInfo={() => setRankModalVisible(true)}
+        onPressBackendConfig={() => setApiConfigVisible(true)}
+      />
 
-          {/* Backend Status indicator */}
-          <TouchableOpacity
-            onPress={() => setApiConfigVisible(true)}
-            className={`flex-row items-center px-3 py-1.5 rounded-full border ${
-              backendStatus.online
-                ? "bg-emerald-50 border-emerald-200"
-                : "bg-amber-50 border-amber-200"
-            }`}
-          >
-            <View
-              className={`w-2 h-2 rounded-full mr-1.5 ${
-                backendStatus.online ? "bg-emerald-500" : "bg-amber-500"
-              }`}
-            />
-            <Text
-              className={`text-[10px] font-bold ${
-                backendStatus.online ? "text-emerald-700" : "text-amber-700"
-              }`}
-            >
-              {backendStatus.online ? "Backend Online" : "Preview Mode"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search input */}
-        <View className="mt-3 bg-white rounded-xl px-3 py-2 border border-slate-200 flex-row items-center">
-          <Text className="text-slate-400 mr-2 text-sm">🔍</Text>
+      {/* Search Bar */}
+      <View className="px-4 mt-1">
+        <View
+          style={styles.searchBox}
+          className="rounded-2xl px-3.5 py-2.5 flex-row items-center"
+        >
+          <Text className="text-[#FF1493] mr-2 text-xs">✦</Text>
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search tasks..."
-            placeholderTextColor="#94a3b8"
-            className="flex-1 text-xs text-slate-800 p-0"
+            placeholder="Scan galaxy missions..."
+            placeholderTextColor="#8A3B68"
+            className="flex-1 text-xs text-white p-0"
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Text className="text-slate-400 font-bold text-xs">✕</Text>
+              <Text className="text-[#FF69B4] font-bold text-xs">✕</Text>
             </TouchableOpacity>
           ) : null}
         </View>
       </View>
 
-      {/* Status Filter Tabs */}
+      {/* Category (Daily / Weekly / Monthly) & Status Filter */}
       <TaskFilter
-        currentStatus={selectedStatus}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+        selectedStatus={selectedStatus}
         onSelectStatus={setSelectedStatus}
-        counts={counts}
+        counts={serverState.counts}
+        expRewards={serverState.metadata.expRewards}
       />
 
-      {/* Task List */}
+      {/* Mission List */}
       <FlatList
-        data={filteredTasks}
-        keyExtractor={(item) => String(item.id)}
+        data={serverState.tasks}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <TaskCard
             task={item}
+            isProcessing={!!processingIds[item.id]}
             onToggleStatus={handleToggleStatus}
+            onEdit={(task) => {
+              setEditingTask(task);
+              setModalVisible(true);
+            }}
             onDelete={handleDeleteTask}
           />
         )}
-        contentContainerStyle={{ paddingBottom: 100, paddingTop: 4 }}
+        contentContainerStyle={{ paddingBottom: 110, paddingTop: 4 }}
         refreshControl={
           <RefreshControl
             refreshing={loading}
-            onRefresh={checkConnectionAndLoad}
-            colors={["#4f46e5"]}
+            onRefresh={syncWithBackend}
+            tintColor="#FF1493"
+            colors={["#FF1493"]}
           />
         }
         ListEmptyComponent={
           <View className="items-center justify-center py-16 px-6">
-            <Text className="text-3xl mb-2">📋</Text>
-            <Text className="text-base font-bold text-slate-700">
-              No tasks found
+            <Text className="text-3xl mb-2">🌌</Text>
+            <Text className="text-base font-extrabold text-white">
+              {backendOnline
+                ? "No Missions in Sector"
+                : "Awaiting Backend Connection"}
             </Text>
-            <Text className="text-xs text-slate-400 text-center mt-1">
-              {searchQuery
+            <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1">
+              {!backendOnline
+                ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline ⚙' above to configure your backend URL."
+                : searchQuery
                 ? `No tasks matching "${searchQuery}"`
-                : "Tap the + button below to create your first task!"}
+                : "Tap the neon + button below to deploy a Daily, Weekly, or Monthly mission."}
             </Text>
           </View>
         }
       />
 
-      {/* Floating Action Button (+) */}
-      <View className="absolute bottom-6 right-6">
+      {/* Floating Neon Pink Action Button */}
+      <View className="absolute bottom-7 right-6">
         <TouchableOpacity
-          onPress={() => setModalVisible(true)}
-          className="w-14 h-14 rounded-full bg-indigo-600 items-center justify-center shadow-lg shadow-indigo-500/30 border border-indigo-500"
+          onPress={() => {
+            setEditingTask(null);
+            setModalVisible(true);
+          }}
+          style={styles.fab}
+          className="rounded-full items-center justify-center"
           activeOpacity={0.85}
+          accessibilityLabel="Create new task"
         >
-          <Text className="text-white text-3xl font-light leading-none mb-1">
+          <Text className="text-black text-3xl font-black leading-none mb-0.5">
             +
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Create Task Modal */}
+      {/* Create / Edit Task Modal */}
       <CreateTaskModal
         visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onSubmit={handleCreateTask}
+        editingTask={editingTask}
+        expRewards={serverState.metadata.expRewards}
+        onClose={() => {
+          setModalVisible(false);
+          setEditingTask(null);
+        }}
+        onSubmit={handleSaveTask}
       />
 
-      {/* API Configuration Modal */}
+      {/* RPG Rank & 1.5x Scaling Codex Modal */}
+      <RankProgressionModal
+        visible={rankModalVisible}
+        progress={serverState.progress}
+        metadata={serverState.metadata}
+        onClose={() => setRankModalVisible(false)}
+      />
+
+      {/* Backend Endpoint Configuration Modal */}
       <Modal
         visible={apiConfigVisible}
         transparent={true}
         animationType="fade"
         onRequestClose={() => setApiConfigVisible(false)}
       >
-        <View className="flex-1 justify-center items-center bg-black/40 px-6">
-          <View className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl border border-slate-100">
-            <Text className="text-base font-bold text-slate-900 mb-1">
-              Backend API Configuration
+        <View className="flex-1 justify-center items-center bg-black/85 px-6">
+          <View
+            style={styles.configCard}
+            className="rounded-3xl p-5 w-full max-w-sm"
+          >
+            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+              ✦ Security & Server Authority
             </Text>
-            <Text className="text-xs text-slate-500 mb-3">
-              Configure the Express server address. If running on physical mobile
-              devices via Expo Go, enter your machine's local network IP.
+            <Text className="text-lg font-black text-white mt-0.5 mb-1">
+              Backend Endpoint
+            </Text>
+            <Text className="text-xs text-[#FFB6C1]/80 mb-3">
+              All gamification math, EXP rewards, and task mutations execute on
+              the backend server.
             </Text>
 
-            <Text className="text-[11px] font-semibold text-slate-600 mb-1">
-              Base API URL
-            </Text>
             <TextInput
               value={apiUrlInput}
               onChangeText={setApiUrlInput}
-              placeholder="e.g. http://192.168.1.50:5000/api"
-              placeholderTextColor="#94a3b8"
+              placeholder="http://localhost:5000/api"
+              placeholderTextColor="#8A3B68"
               autoCapitalize="none"
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 mb-4"
+              style={styles.searchBox}
+              className="rounded-xl px-3.5 py-2.5 text-xs text-white mb-4 font-mono"
             />
 
-            <View className="flex-row space-x-2">
+            <View className="flex-row">
               <TouchableOpacity
                 onPress={() => setApiConfigVisible(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 items-center mr-2"
+                className="flex-1 py-2.5 rounded-xl bg-[#140710] border border-[#2E1122] items-center mr-2"
               >
-                <Text className="text-xs font-semibold text-slate-700">Cancel</Text>
+                <Text className="text-xs font-bold text-[#FFB6C1]">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveApiUrl}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-600 items-center"
+                className="flex-1 py-2.5 rounded-xl bg-[#FF1493] items-center"
               >
-                <Text className="text-xs font-bold text-white">Save & Reconnect</Text>
+                <Text className="text-xs font-black text-black">
+                  Connect
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -286,3 +471,27 @@ export default function App() {
   );
 }
 
+const styles = StyleSheet.create({
+  searchBox: {
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1,
+    borderColor: "#2E1122",
+  },
+  configCard: {
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1.5,
+    borderColor: "#FF1493",
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    backgroundColor: "#FF1493",
+    borderWidth: 2,
+    borderColor: "#FF69B4",
+    shadowColor: "#FF1493",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+});

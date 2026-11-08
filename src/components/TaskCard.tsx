@@ -1,81 +1,99 @@
-import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
-import { Task, TaskPriority, TaskStatus } from "../types/task";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Task } from "../types/task";
 
 interface TaskCardProps {
   task: Task;
+  isProcessing?: boolean;
   onToggleStatus: (task: Task) => void;
-  onDelete: (id: number) => void;
+  onEdit: (task: Task) => void;
+  onDelete: (id: string) => void;
 }
 
-const getPriorityBadge = (priority: TaskPriority) => {
-  switch (priority) {
-    case "high":
-      return { bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700", label: "High" };
-    case "medium":
-      return { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", label: "Medium" };
-    case "low":
-    default:
-      return { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", label: "Low" };
-  }
-};
+function formatScheduledDateTime(isoString: string): string {
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "Unscheduled";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
-const getStatusBadge = (status: TaskStatus) => {
-  switch (status) {
-    case "completed":
-      return { bg: "bg-emerald-100", text: "text-emerald-800", label: "Completed" };
-    case "in_progress":
-      return { bg: "bg-blue-100", text: "text-blue-800", label: "In Progress" };
-    case "pending":
-    default:
-      return { bg: "bg-slate-100", text: "text-slate-700", label: "Pending" };
-  }
-};
-
-export const TaskCard: React.FC<TaskCardProps> = ({
+export const TaskCard = ({
   task,
+  isProcessing = false,
   onToggleStatus,
+  onEdit,
   onDelete,
-}) => {
-  const isCompleted = task.status === "completed";
-  const priorityInfo = getPriorityBadge(task.priority);
-  const statusInfo = getStatusBadge(task.status);
+}: TaskCardProps) => {
+  const isDone = task.status === "Done";
+  const isOverdue =
+    !isDone && new Date(task.scheduledAt).getTime() < Date.now();
 
   return (
-    <View className="bg-white mx-4 my-1.5 p-4 rounded-2xl border border-slate-100 shadow-sm">
+    <View
+      style={isDone ? styles.cardDone : styles.cardPending}
+      className="mx-4 my-1.5 p-4 rounded-2xl"
+    >
       <View className="flex-row items-start justify-between">
-        {/* Toggle Checkbox + Title */}
+        {/* Interactive Galaxy Checkbox + Task Content */}
         <View className="flex-row items-start flex-1 mr-2">
           <TouchableOpacity
             onPress={() => onToggleStatus(task)}
-            className={`w-6 h-6 rounded-full mr-3 items-center justify-center border-2 mt-0.5 ${
-              isCompleted
-                ? "bg-emerald-500 border-emerald-500"
-                : task.status === "in_progress"
-                ? "border-blue-500 bg-blue-50"
-                : "border-slate-300 bg-white"
-            }`}
+            disabled={isProcessing}
+            activeOpacity={0.75}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isDone, disabled: isProcessing }}
+            style={isDone ? styles.checkboxChecked : styles.checkboxUnchecked}
+            className="w-7 h-7 rounded-lg mr-3.5 mt-0.5 items-center justify-center"
           >
-            {isCompleted && (
-              <Text className="text-white text-xs font-bold leading-none">✓</Text>
-            )}
-            {task.status === "in_progress" && (
-              <View className="w-2 h-2 rounded-full bg-blue-500" />
+            {isDone ? (
+              <Text className="text-black text-sm font-black leading-none">
+                ✓
+              </Text>
+            ) : (
+              <View className="w-2 h-2 rounded-full bg-[#FF1493]/30" />
             )}
           </TouchableOpacity>
 
           <View className="flex-1">
+            <View className="flex-row items-center flex-wrap mb-1">
+              <View
+                style={styles.categoryBadge}
+                className="px-2.5 py-0.5 rounded-full mr-2"
+              >
+                <Text className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF1493]">
+                  {task.category} • +{task.expReward} EXP
+                </Text>
+              </View>
+
+              <View
+                style={isDone ? styles.statusDoneBadge : styles.statusPendingBadge}
+                className="px-2 py-0.5 rounded-full"
+              >
+                <Text
+                  className={`text-[9px] font-bold uppercase ${
+                    isDone ? "text-black" : "text-[#FF69B4]"
+                  }`}
+                >
+                  {task.status}
+                </Text>
+              </View>
+            </View>
+
             <Text
-              className={`text-base font-semibold ${
-                isCompleted ? "text-slate-400 line-through" : "text-slate-800"
+              className={`text-base font-bold mt-0.5 ${
+                isDone ? "text-[#8A3B68] line-through" : "text-white"
               }`}
             >
               {task.title}
             </Text>
+
             {task.description ? (
               <Text
                 className={`text-xs mt-1 leading-relaxed ${
-                  isCompleted ? "text-slate-300" : "text-slate-500"
+                  isDone ? "text-[#8A3B68]/60" : "text-[#FFB6C1]/80"
                 }`}
                 numberOfLines={2}
               >
@@ -85,41 +103,102 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           </View>
         </View>
 
-        {/* Delete button */}
-        <TouchableOpacity
-          onPress={() => onDelete(task.id)}
-          className="p-1 rounded-full active:bg-rose-50"
-        >
-          <Text className="text-slate-300 hover:text-rose-500 font-bold text-sm">✕</Text>
-        </TouchableOpacity>
+        {/* Edit & Delete Actions */}
+        <View className="flex-row items-center">
+          <TouchableOpacity
+            onPress={() => onEdit(task)}
+            className="p-1.5 mr-1 rounded-lg bg-[#140710] border border-[#2E1122]"
+            accessibilityLabel="Edit task"
+          >
+            <Text className="text-[#FF69B4] text-xs font-bold">✎</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => onDelete(task.id)}
+            className="p-1.5 rounded-lg bg-[#140710] border border-[#2E1122]"
+            accessibilityLabel="Delete task"
+          >
+            <Text className="text-[#FF1493] text-xs font-bold">✕</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Meta tags (Priority, Status, Date) */}
-      <View className="flex-row items-center justify-between mt-3 pt-2.5 border-t border-slate-50">
-        <View className="flex-row items-center space-x-1.5">
-          <View
-            className={`px-2 py-0.5 rounded-full border ${priorityInfo.bg} ${priorityInfo.border}`}
+      {/* Footer: Target Schedule & Push Notification Telemetry */}
+      <View className="flex-row items-center justify-between mt-3 pt-2.5 border-t border-[#1F0B17]">
+        <View className="flex-row items-center">
+          <Text className="text-xs mr-1.5">
+            {isDone ? "✨" : task.notificationId ? "🔔" : "⏰"}
+          </Text>
+          <Text
+            className={`text-[11px] font-semibold ${
+              isDone
+                ? "text-[#8A3B68]"
+                : isOverdue
+                ? "text-[#FF1493]"
+                : "text-[#FFB6C1]"
+            }`}
           >
-            <Text className={`text-[10px] font-semibold ${priorityInfo.text}`}>
-              {priorityInfo.label}
-            </Text>
-          </View>
-
-          <View className={`ml-1.5 px-2 py-0.5 rounded-full ${statusInfo.bg}`}>
-            <Text className={`text-[10px] font-semibold ${statusInfo.text}`}>
-              {statusInfo.label}
-            </Text>
-          </View>
+            {formatScheduledDateTime(task.scheduledAt)}
+            {isOverdue ? " (Due)" : ""}
+          </Text>
         </View>
 
-        <Text className="text-[10px] text-slate-400">
-          {new Date(task.createdAt).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-          })}
+        <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4]">
+          {isDone
+            ? `Claimed +${task.expReward} EXP`
+            : `Complete for +${task.expReward} EXP`}
         </Text>
       </View>
     </View>
   );
 };
 
+const styles = StyleSheet.create({
+  cardPending: {
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1,
+    borderColor: "#2E1122",
+    shadowColor: "#FF1493",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardDone: {
+    backgroundColor: "#050304",
+    borderWidth: 1,
+    borderColor: "#1A0913",
+    opacity: 0.85,
+  },
+  checkboxUnchecked: {
+    backgroundColor: "#000000",
+    borderWidth: 2,
+    borderColor: "#FF1493",
+    shadowColor: "#FF1493",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+  },
+  checkboxChecked: {
+    backgroundColor: "#FF1493",
+    borderWidth: 2,
+    borderColor: "#FF69B4",
+    shadowColor: "#FF1493",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+  },
+  categoryBadge: {
+    backgroundColor: "#140710",
+    borderWidth: 1,
+    borderColor: "#FF1493",
+  },
+  statusPendingBadge: {
+    backgroundColor: "#140710",
+    borderWidth: 1,
+    borderColor: "#2E1122",
+  },
+  statusDoneBadge: {
+    backgroundColor: "#FF69B4",
+  },
+});
