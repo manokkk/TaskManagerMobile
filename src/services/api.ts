@@ -1,7 +1,22 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { GalaxyStateResponse, Task, TaskInput } from "../types/task";
 
 const getDefaultBaseUrl = (): string => {
+  // If running in Expo Go or development client, dynamically resolve the host PC's Wi-Fi IP
+  const debuggerHost =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ||
+    (Constants as any).manifest?.debuggerHost;
+
+  if (debuggerHost) {
+    const hostIp = debuggerHost.split(":")[0];
+    if (hostIp) {
+      return `http://${hostIp}:5000/api`;
+    }
+  }
+
+  // Fallback for Android Studio Emulator (10.0.2.2 maps to host PC localhost)
   if (Platform.OS === "android") {
     return "http://10.0.2.2:5000/api";
   }

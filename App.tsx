@@ -288,7 +288,7 @@ export default function App() {
 
   return (
     <SafeAreaView className="flex-1 bg-black">
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" />
 
       {/* RPG Level, EXP, & Rank Tier HUD (Rendered from Backend State) */}
       <GalaxyHeader
@@ -298,7 +298,10 @@ export default function App() {
         notificationsEnabled={notificationsEnabled}
         backendOnline={backendOnline}
         onPressRankInfo={() => setRankModalVisible(true)}
-        onPressBackendConfig={() => setApiConfigVisible(true)}
+        onPressBackendConfig={() => {
+          setApiUrlInput(galaxyApi.getBaseUrl());
+          setApiConfigVisible(true);
+        }}
       />
 
       {/* Search Bar */}
@@ -438,10 +441,38 @@ export default function App() {
               the backend server.
             </Text>
 
+            {/* Quick Presets */}
+            <View className="flex-row flex-wrap mb-3">
+              <TouchableOpacity
+                onPress={() => setApiUrlInput("http://192.168.100.51:5000/api")}
+                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493]"
+              >
+                <Text className="text-[10px] font-bold text-[#FF69B4]">
+                  📱 Wi-Fi: 192.168.100.51
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
+                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+              >
+                <Text className="text-[10px] font-bold text-[#FFB6C1]">
+                  🤖 Emulator (10.0.2.2)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setApiUrlInput("http://localhost:5000/api")}
+                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+              >
+                <Text className="text-[10px] font-bold text-[#FFB6C1]">
+                  💻 Localhost
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <TextInput
               value={apiUrlInput}
               onChangeText={setApiUrlInput}
-              placeholder="http://localhost:5000/api"
+              placeholder="http://192.168.100.51:5000/api"
               placeholderTextColor="#8A3B68"
               autoCapitalize="none"
               style={styles.searchBox}

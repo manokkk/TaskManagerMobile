@@ -8,6 +8,8 @@ export const GALAXY_NOTIFICATION_CHANNEL_ID = "galaxy-task-reminders";
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
