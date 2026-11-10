@@ -3,16 +3,18 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   TextInput,
-  StatusBar,
   RefreshControl,
   Modal,
   Alert,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GalaxyStateResponse, Task, TaskInput } from "./src/types/task";
 import { notificationService } from "./src/services/notifications";
 import { galaxyApi } from "./src/services/api";
@@ -25,6 +27,7 @@ import {
 import { TaskCard } from "./src/components/TaskCard";
 import { CreateTaskModal } from "./src/components/CreateTaskModal";
 import { RankProgressionModal } from "./src/components/RankProgressionModal";
+import { useResponsiveLayout } from "./src/hooks/useResponsiveLayout";
 
 /**
  * Default empty placeholder rendered strictly while awaiting the first backend response.
@@ -57,6 +60,26 @@ const EMPTY_SERVER_STATE: GalaxyStateResponse = {
 };
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <GalaxyQuestMain />
+    </SafeAreaProvider>
+  );
+}
+
+function GalaxyQuestMain() {
+  const {
+    isSmallDevice,
+    isTablet,
+    totalTopPadding,
+    horizontalMargin,
+    fabBottom,
+    listBottomPadding,
+    hudPadding,
+    hudMarginBottom,
+    maxContentWidth,
+  } = useResponsiveLayout();
+
   const [serverState, setServerState] =
     useState<GalaxyStateResponse>(EMPTY_SERVER_STATE);
   const [loading, setLoading] = useState(false);
@@ -287,218 +310,260 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <StatusBar barStyle="light-content" />
+    <View className="flex-1 bg-black">
+      {/* Dark theme status bar across iOS & Android */}
+      <StatusBar style="light" />
 
-      {/* RPG Level, EXP, & Rank Tier HUD (Rendered from Backend State) */}
-      <GalaxyHeader
-        progress={serverState.progress}
-        completedCount={serverState.counts.Completed}
-        totalCount={serverState.counts.Total}
-        notificationsEnabled={notificationsEnabled}
-        backendOnline={backendOnline}
-        onPressRankInfo={() => setRankModalVisible(true)}
-        onPressBackendConfig={() => {
-          setApiUrlInput(galaxyApi.getBaseUrl());
-          setApiConfigVisible(true);
+      {/* Main Responsive Container */}
+      <View
+        style={{
+          flex: 1,
+          width: "100%",
+          maxWidth: isTablet ? maxContentWidth : undefined,
+          alignSelf: "center",
+          paddingTop: totalTopPadding,
         }}
-      />
+      >
+        {/* RPG Level, EXP, & Rank Tier HUD (Rendered from Backend State) */}
+        <GalaxyHeader
+          progress={serverState.progress}
+          completedCount={serverState.counts.Completed}
+          totalCount={serverState.counts.Total}
+          notificationsEnabled={notificationsEnabled}
+          backendOnline={backendOnline}
+          onPressRankInfo={() => setRankModalVisible(true)}
+          onPressBackendConfig={() => {
+            setApiUrlInput(galaxyApi.getBaseUrl());
+            setApiConfigVisible(true);
+          }}
+          horizontalMargin={horizontalMargin}
+          hudPadding={hudPadding}
+          hudMarginBottom={hudMarginBottom}
+          isSmallDevice={isSmallDevice}
+        />
 
-      {/* Search Bar */}
-      <View className="px-4 mt-1">
+        {/* Search Bar */}
         <View
-          style={styles.searchBox}
-          className="rounded-2xl px-3.5 py-2.5 flex-row items-center"
+          style={{
+            paddingHorizontal: horizontalMargin,
+            marginTop: isSmallDevice ? 2 : 4,
+          }}
         >
-          <Text className="text-[#FF1493] mr-2 text-xs">✦</Text>
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Scan galaxy missions..."
-            placeholderTextColor="#8A3B68"
-            className="flex-1 text-xs text-white p-0"
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Text className="text-[#FF69B4] font-bold text-xs">✕</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View
+            style={[styles.searchBox, { height: isSmallDevice ? 40 : 44 }]}
+            className="rounded-2xl px-3.5 flex-row items-center"
+          >
+            <Text className="text-[#FF1493] mr-2 text-xs">✦</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Scan galaxy missions..."
+              placeholderTextColor="#8A3B68"
+              className="flex-1 text-xs text-white p-0"
+            />
+            {searchQuery ? (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text className="text-[#FF69B4] font-bold text-xs">✕</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
-      </View>
 
-      {/* Category (Daily / Weekly / Monthly) & Status Filter */}
-      <TaskFilter
-        selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
-        selectedStatus={selectedStatus}
-        onSelectStatus={setSelectedStatus}
-        counts={serverState.counts}
-        expRewards={serverState.metadata.expRewards}
-      />
+        {/* Category (Daily / Weekly / Monthly) & Status Filter */}
+        <TaskFilter
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          selectedStatus={selectedStatus}
+          onSelectStatus={setSelectedStatus}
+          counts={serverState.counts}
+          expRewards={serverState.metadata.expRewards}
+          horizontalMargin={horizontalMargin}
+          isSmallDevice={isSmallDevice}
+        />
 
-      {/* Mission List */}
-      <FlatList
-        data={serverState.tasks}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TaskCard
-            task={item}
-            isProcessing={!!processingIds[item.id]}
-            onToggleStatus={handleToggleStatus}
-            onEdit={(task) => {
-              setEditingTask(task);
+        {/* Mission List */}
+        <FlatList
+          data={serverState.tasks}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TaskCard
+              task={item}
+              isProcessing={!!processingIds[item.id]}
+              onToggleStatus={handleToggleStatus}
+              onEdit={(task) => {
+                setEditingTask(task);
+                setModalVisible(true);
+              }}
+              onDelete={handleDeleteTask}
+              horizontalMargin={horizontalMargin}
+              isSmallDevice={isSmallDevice}
+            />
+          )}
+          contentContainerStyle={{
+            paddingBottom: listBottomPadding,
+            paddingTop: 4,
+          }}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={syncWithBackend}
+              tintColor="#FF1493"
+              colors={["#FF1493"]}
+            />
+          }
+          ListEmptyComponent={
+            <View className="items-center justify-center py-16 px-6">
+              <Text className="text-3xl mb-2">🌌</Text>
+              <Text className="text-base font-extrabold text-white">
+                {backendOnline
+                  ? "No Missions in Sector"
+                  : "Awaiting Backend Connection"}
+              </Text>
+              <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1">
+                {!backendOnline
+                  ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline ⚙' above to configure your backend URL."
+                  : searchQuery
+                  ? `No tasks matching "${searchQuery}"`
+                  : "Tap the neon + button below to deploy a Daily, Weekly, or Monthly mission."}
+              </Text>
+            </View>
+          }
+        />
+
+        {/* Floating Neon Pink Action Button */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: fabBottom,
+            right: Math.max(20, horizontalMargin + 4),
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => {
+              setEditingTask(null);
               setModalVisible(true);
             }}
-            onDelete={handleDeleteTask}
-          />
-        )}
-        contentContainerStyle={{ paddingBottom: 110, paddingTop: 4 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={loading}
-            onRefresh={syncWithBackend}
-            tintColor="#FF1493"
-            colors={["#FF1493"]}
-          />
-        }
-        ListEmptyComponent={
-          <View className="items-center justify-center py-16 px-6">
-            <Text className="text-3xl mb-2">🌌</Text>
-            <Text className="text-base font-extrabold text-white">
-              {backendOnline
-                ? "No Missions in Sector"
-                : "Awaiting Backend Connection"}
-            </Text>
-            <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1">
-              {!backendOnline
-                ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline ⚙' above to configure your backend URL."
-                : searchQuery
-                ? `No tasks matching "${searchQuery}"`
-                : "Tap the neon + button below to deploy a Daily, Weekly, or Monthly mission."}
-            </Text>
-          </View>
-        }
-      />
-
-      {/* Floating Neon Pink Action Button */}
-      <View className="absolute bottom-7 right-6">
-        <TouchableOpacity
-          onPress={() => {
-            setEditingTask(null);
-            setModalVisible(true);
-          }}
-          style={styles.fab}
-          className="rounded-full items-center justify-center"
-          activeOpacity={0.85}
-          accessibilityLabel="Create new task"
-        >
-          <Text className="text-black text-3xl font-black leading-none mb-0.5">
-            +
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Create / Edit Task Modal */}
-      <CreateTaskModal
-        visible={modalVisible}
-        editingTask={editingTask}
-        expRewards={serverState.metadata.expRewards}
-        onClose={() => {
-          setModalVisible(false);
-          setEditingTask(null);
-        }}
-        onSubmit={handleSaveTask}
-      />
-
-      {/* RPG Rank & 1.5x Scaling Codex Modal */}
-      <RankProgressionModal
-        visible={rankModalVisible}
-        progress={serverState.progress}
-        metadata={serverState.metadata}
-        onClose={() => setRankModalVisible(false)}
-      />
-
-      {/* Backend Endpoint Configuration Modal */}
-      <Modal
-        visible={apiConfigVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setApiConfigVisible(false)}
-      >
-        <View className="flex-1 justify-center items-center bg-black/85 px-6">
-          <View
-            style={styles.configCard}
-            className="rounded-3xl p-5 w-full max-w-sm"
+            style={styles.fab}
+            className="rounded-full items-center justify-center"
+            activeOpacity={0.85}
+            accessibilityLabel="Create new task"
           >
-            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-              ✦ Security & Server Authority
+            <Text className="text-black text-3xl font-black leading-none mb-0.5">
+              +
             </Text>
-            <Text className="text-lg font-black text-white mt-0.5 mb-1">
-              Backend Endpoint
-            </Text>
-            <Text className="text-xs text-[#FFB6C1]/80 mb-3">
-              All gamification math, EXP rewards, and task mutations execute on
-              the backend server.
-            </Text>
-
-            {/* Quick Presets */}
-            <View className="flex-row flex-wrap mb-3">
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://192.168.100.51:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493]"
-              >
-                <Text className="text-[10px] font-bold text-[#FF69B4]">
-                  📱 Wi-Fi: 192.168.100.51
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
-              >
-                <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  🤖 Emulator (10.0.2.2)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://localhost:5000/api")}
-                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
-              >
-                <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  💻 Localhost
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              value={apiUrlInput}
-              onChangeText={setApiUrlInput}
-              placeholder="http://192.168.100.51:5000/api"
-              placeholderTextColor="#8A3B68"
-              autoCapitalize="none"
-              style={styles.searchBox}
-              className="rounded-xl px-3.5 py-2.5 text-xs text-white mb-4 font-mono"
-            />
-
-            <View className="flex-row">
-              <TouchableOpacity
-                onPress={() => setApiConfigVisible(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#140710] border border-[#2E1122] items-center mr-2"
-              >
-                <Text className="text-xs font-bold text-[#FFB6C1]">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSaveApiUrl}
-                className="flex-1 py-2.5 rounded-xl bg-[#FF1493] items-center"
-              >
-                <Text className="text-xs font-black text-black">
-                  Connect
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </SafeAreaView>
+
+        {/* Create / Edit Task Modal */}
+        <CreateTaskModal
+          visible={modalVisible}
+          editingTask={editingTask}
+          expRewards={serverState.metadata.expRewards}
+          onClose={() => {
+            setModalVisible(false);
+            setEditingTask(null);
+          }}
+          onSubmit={handleSaveTask}
+        />
+
+        {/* RPG Rank & 1.5x Scaling Codex Modal */}
+        <RankProgressionModal
+          visible={rankModalVisible}
+          progress={serverState.progress}
+          metadata={serverState.metadata}
+          onClose={() => setRankModalVisible(false)}
+        />
+
+        {/* Backend Endpoint Configuration Modal */}
+        <Modal
+          visible={apiConfigVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setApiConfigVisible(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            className="flex-1 justify-center items-center bg-black/85 px-6"
+          >
+            <View
+              style={styles.configCard}
+              className="rounded-3xl p-5 w-full max-w-sm"
+            >
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                ✦ Security & Server Authority
+              </Text>
+              <Text className="text-lg font-black text-white mt-0.5 mb-1">
+                Backend Endpoint
+              </Text>
+              <Text className="text-xs text-[#FFB6C1]/80 mb-3">
+                All gamification math, EXP rewards, and task mutations execute
+                on the backend server.
+              </Text>
+
+              {/* Quick Presets */}
+              <View className="flex-row flex-wrap mb-3">
+                <TouchableOpacity
+                  onPress={() =>
+                    setApiUrlInput("http://192.168.100.51:5000/api")
+                  }
+                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493]"
+                >
+                  <Text className="text-[10px] font-bold text-[#FF69B4]">
+                    📱 Wi-Fi: 192.168.100.51
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
+                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                >
+                  <Text className="text-[10px] font-bold text-[#FFB6C1]">
+                    🤖 Emulator (10.0.2.2)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setApiUrlInput("http://localhost:5000/api")}
+                  className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                >
+                  <Text className="text-[10px] font-bold text-[#FFB6C1]">
+                    💻 Localhost
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                value={apiUrlInput}
+                onChangeText={setApiUrlInput}
+                placeholder="http://192.168.100.51:5000/api"
+                placeholderTextColor="#8A3B68"
+                autoCapitalize="none"
+                style={styles.searchBox}
+                className="rounded-xl px-3.5 py-2.5 text-xs text-white mb-4 font-mono"
+              />
+
+              <View className="flex-row">
+                <TouchableOpacity
+                  onPress={() => setApiConfigVisible(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-[#140710] border border-[#2E1122] items-center mr-2"
+                >
+                  <Text className="text-xs font-bold text-[#FFB6C1]">
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSaveApiUrl}
+                  className="flex-1 py-2.5 rounded-xl bg-[#FF1493] items-center"
+                >
+                  <Text className="text-xs font-black text-black">Connect</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      </View>
+    </View>
   );
 }
 

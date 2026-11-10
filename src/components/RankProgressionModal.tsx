@@ -206,6 +206,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 18,
     elevation: 12,
+    maxWidth: 480,
   },
   telemetryBox: {
     backgroundColor: "#140710",

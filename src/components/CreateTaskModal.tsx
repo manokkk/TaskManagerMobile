@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Task, TaskCategory, TaskInput } from "../types/task";
 
 interface CreateTaskModalProps {
@@ -41,6 +42,7 @@ export const CreateTaskModal = ({
   onClose,
   onSubmit,
 }: CreateTaskModalProps) => {
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<TaskCategory>("Daily");
@@ -146,7 +148,10 @@ export const CreateTaskModal = ({
         className="flex-1 justify-end bg-black/85"
       >
         <View
-          style={styles.modalSheet}
+          style={[
+            styles.modalSheet,
+            { paddingBottom: Math.max(20, insets.bottom + 16) },
+          ]}
           className="rounded-t-3xl p-6 max-h-[90%]"
         >
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -341,6 +346,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 16,
     elevation: 16,
+    maxWidth: 600,
+    width: "100%",
+    alignSelf: "center",
   },
   inputField: {
     backgroundColor: "#000000",

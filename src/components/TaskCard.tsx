@@ -7,6 +7,8 @@ interface TaskCardProps {
   onToggleStatus: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  horizontalMargin?: number;
+  isSmallDevice?: boolean;
 }
 
 function formatScheduledDateTime(isoString: string): string {
@@ -26,6 +28,8 @@ export const TaskCard = ({
   onToggleStatus,
   onEdit,
   onDelete,
+  horizontalMargin = 16,
+  isSmallDevice = false,
 }: TaskCardProps) => {
   const isDone = task.status === "Done";
   const isOverdue =
@@ -33,8 +37,11 @@ export const TaskCard = ({
 
   return (
     <View
-      style={isDone ? styles.cardDone : styles.cardPending}
-      className="mx-4 my-1.5 p-4 rounded-2xl"
+      style={[
+        isDone ? styles.cardDone : styles.cardPending,
+        { marginHorizontal: horizontalMargin },
+      ]}
+      className={`my-1.5 ${isSmallDevice ? "p-3" : "p-4"} rounded-2xl`}
     >
       <View className="flex-row items-start justify-between">
         {/* Interactive Galaxy Checkbox + Task Content */}
@@ -46,7 +53,7 @@ export const TaskCard = ({
             accessibilityRole="checkbox"
             accessibilityState={{ checked: isDone, disabled: isProcessing }}
             style={isDone ? styles.checkboxChecked : styles.checkboxUnchecked}
-            className="w-7 h-7 rounded-lg mr-3.5 mt-0.5 items-center justify-center"
+            className="w-7 h-7 rounded-lg mr-3 mt-0.5 items-center justify-center"
           >
             {isDone ? (
               <Text className="text-black text-sm font-black leading-none">
@@ -61,7 +68,7 @@ export const TaskCard = ({
             <View className="flex-row items-center flex-wrap mb-1">
               <View
                 style={styles.categoryBadge}
-                className="px-2.5 py-0.5 rounded-full mr-2"
+                className="px-2 py-0.5 rounded-full mr-1.5 mb-1"
               >
                 <Text className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF1493]">
                   {task.category} • +{task.expReward} EXP
@@ -70,7 +77,7 @@ export const TaskCard = ({
 
               <View
                 style={isDone ? styles.statusDoneBadge : styles.statusPendingBadge}
-                className="px-2 py-0.5 rounded-full"
+                className="px-2 py-0.5 rounded-full mb-1"
               >
                 <Text
                   className={`text-[9px] font-bold uppercase ${
@@ -124,7 +131,7 @@ export const TaskCard = ({
       </View>
 
       {/* Footer: Target Schedule & Push Notification Telemetry */}
-      <View className="flex-row items-center justify-between mt-3 pt-2.5 border-t border-[#1F0B17]">
+      <View className="flex-row items-center justify-between mt-2.5 pt-2 border-t border-[#1F0B17]">
         <View className="flex-row items-center">
           <Text className="text-xs mr-1.5">
             {isDone ? "✨" : task.notificationId ? "🔔" : "⏰"}

@@ -11,6 +11,8 @@ interface TaskFilterProps {
   onSelectStatus: (status: StatusFilterValue) => void;
   counts: TaskCounts;
   expRewards: Record<TaskCategory, number>;
+  horizontalMargin?: number;
+  isSmallDevice?: boolean;
 }
 
 export const TaskFilter = ({
@@ -20,6 +22,8 @@ export const TaskFilter = ({
   onSelectStatus,
   counts,
   expRewards,
+  horizontalMargin = 16,
+  isSmallDevice = false,
 }: TaskFilterProps) => {
   const categories: {
     key: CategoryFilterValue;
@@ -51,12 +55,15 @@ export const TaskFilter = ({
   const statuses: StatusFilterValue[] = ["All", "Pending", "Done"];
 
   return (
-    <View className="my-2">
+    <View style={{ marginVertical: isSmallDevice ? 4 : 6 }}>
       {/* Category Tabs */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="px-4"
+        contentContainerStyle={{
+          paddingHorizontal: horizontalMargin,
+          alignItems: "center",
+        }}
       >
         {categories.map((cat) => {
           const isActive = selectedCategory === cat.key;
@@ -66,7 +73,9 @@ export const TaskFilter = ({
               onPress={() => onSelectCategory(cat.key)}
               activeOpacity={0.8}
               style={isActive ? styles.activeTab : styles.inactiveTab}
-              className="mr-2.5 px-3.5 py-2 rounded-2xl flex-row items-center"
+              className={`mr-2 ${
+                isSmallDevice ? "px-3 py-1.5 rounded-xl" : "px-3.5 py-2 rounded-2xl"
+              } flex-row items-center`}
             >
               <Text
                 className={`text-xs font-extrabold ${
@@ -88,7 +97,7 @@ export const TaskFilter = ({
 
               <View
                 style={isActive ? styles.activeCountPill : styles.inactiveCountPill}
-                className="ml-2 px-1.5 py-0.5 rounded-full"
+                className="ml-1.5 px-1.5 py-0.5 rounded-full"
               >
                 <Text
                   className={`text-[10px] font-black ${
@@ -104,7 +113,13 @@ export const TaskFilter = ({
       </ScrollView>
 
       {/* Status Sub-filter */}
-      <View className="flex-row items-center justify-between px-4 mt-2.5">
+      <View
+        style={{
+          paddingHorizontal: horizontalMargin,
+          marginTop: isSmallDevice ? 6 : 8,
+        }}
+        className="flex-row items-center justify-between"
+      >
         <Text className="text-[10px] font-bold uppercase tracking-widest text-[#8A3B68]">
           Status Filter
         </Text>
@@ -118,7 +133,7 @@ export const TaskFilter = ({
                 style={
                   isSelected ? styles.activeStatusPill : styles.inactiveStatusPill
                 }
-                className="ml-1.5 px-3 py-1 rounded-full"
+                className="ml-1.5 px-2.5 py-0.5 rounded-full"
               >
                 <Text
                   className={`text-[10px] font-bold uppercase tracking-wider ${
