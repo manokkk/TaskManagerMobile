@@ -71,7 +71,8 @@ export const TaskCard = ({
                 className="px-2 py-0.5 rounded-full mr-1.5 mb-1"
               >
                 <Text className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF1493]">
-                  {task.category} • +{task.expReward} EXP
+                  {task.category}
+                  {task.expReward > 0 ? ` • +${task.expReward} EXP` : " • Memo"}
                 </Text>
               </View>
 

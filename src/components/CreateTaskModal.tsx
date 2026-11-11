@@ -17,6 +17,7 @@ interface CreateTaskModalProps {
   visible: boolean;
   editingTask?: Task | null;
   expRewards: Record<TaskCategory, number>;
+  defaultCategory?: TaskCategory;
   onClose: () => void;
   onSubmit: (input: TaskInput, existingTaskId?: string) => void;
 }
@@ -39,6 +40,7 @@ export const CreateTaskModal = ({
   visible,
   editingTask,
   expRewards,
+  defaultCategory,
   onClose,
   onSubmit,
 }: CreateTaskModalProps) => {
@@ -68,11 +70,11 @@ export const CreateTaskModal = ({
       const defaultFuture = new Date(Date.now() + 60 * 60 * 1000);
       setTitle("");
       setDescription("");
-      setCategory("Daily");
+      setCategory(defaultCategory || "Daily");
       setDateStr(toDateInputString(defaultFuture));
       setTimeStr(toTimeInputString(defaultFuture));
     }
-  }, [visible, editingTask]);
+  }, [visible, editingTask, defaultCategory]);
 
   const applyQuickScheduleOffset = (minutesFromNow: number) => {
     const target = new Date(Date.now() + minutesFromNow * 60 * 1000);
@@ -83,7 +85,22 @@ export const CreateTaskModal = ({
 
   const handleSave = () => {
     if (!title.trim()) {
-      setErrorMessage("Mission title is required.");
+      setErrorMessage("Title is required.");
+      return;
+    }
+
+    // Notes do not require calendar schedule
+    if (category === "Note") {
+      onSubmit(
+        {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          category: "Note",
+          scheduledAt: new Date().toISOString(),
+        },
+        editingTask?.id
+      );
+      onClose();
       return;
     }
 
@@ -134,7 +151,7 @@ export const CreateTaskModal = ({
     onClose();
   };
 
-  const categories: TaskCategory[] = ["Daily", "Weekly", "Monthly"];
+  const categories: TaskCategory[] = ["Daily", "Weekly", "Monthly", "Note"];
 
   return (
     <Modal
@@ -202,7 +219,7 @@ export const CreateTaskModal = ({
                         isSelected ? "text-black/80" : "text-[#FF69B4]"
                       }`}
                     >
-                      +{reward} EXP
+                      {reward > 0 ? `+${reward} EXP` : "No EXP"}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -241,64 +258,84 @@ export const CreateTaskModal = ({
               className="rounded-xl px-4 py-3 text-white text-sm mb-4 min-h-[72px]"
             />
 
-            {/* Target Date & Time for Local Push Notification */}
-            <View className="flex-row items-center justify-between mb-1.5">
-              <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1]">
-                🔔 Push Alert Schedule
-              </Text>
-              <Text className="text-[10px] text-[#FF69B4] font-semibold">
-                Local Timezone
-              </Text>
-            </View>
-
-            {/* Quick Presets */}
-            <View className="flex-row mb-2.5">
-              {[
-                { label: "+15m", mins: 15 },
-                { label: "+1h", mins: 60 },
-                { label: "+3h", mins: 180 },
-                { label: "+24h", mins: 1440 },
-              ].map((preset) => (
-                <TouchableOpacity
-                  key={preset.label}
-                  onPress={() => applyQuickScheduleOffset(preset.mins)}
-                  className="mr-2 px-3 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
-                >
-                  <Text className="text-[10px] font-bold text-[#FF69B4]">
-                    {preset.label}
+            {/* Target Date & Time or Note Notice */}
+            {category === "Note" ? (
+              <View
+                style={{
+                  backgroundColor: "#140710",
+                  borderWidth: 1,
+                  borderColor: "#2E1122",
+                }}
+                className="p-3.5 rounded-2xl mb-4"
+              >
+                <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4] mb-1">
+                  📝 Untimed Note Memo
+                </Text>
+                <Text className="text-xs text-[#FFB6C1]/80">
+                  Notes are quick ideas, memos, and tasks that are not included in daily, weekly, or monthly schedules.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View className="flex-row items-center justify-between mb-1.5">
+                  <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1]">
+                    🔔 Push Alert Schedule
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  <Text className="text-[10px] text-[#FF69B4] font-semibold">
+                    Local Timezone
+                  </Text>
+                </View>
 
-            <View className="flex-row mb-4">
-              <View className="flex-1 mr-2">
-                <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">
-                  Target Date (YYYY-MM-DD)
-                </Text>
-                <TextInput
-                  value={dateStr}
-                  onChangeText={setDateStr}
-                  placeholder="2026-11-08"
-                  placeholderTextColor="#8A3B68"
-                  style={styles.inputField}
-                  className="rounded-xl px-3.5 py-2.5 text-white text-xs font-mono"
-                />
-              </View>
-              <View className="w-32">
-                <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">
-                  Time (HH:MM 24h)
-                </Text>
-                <TextInput
-                  value={timeStr}
-                  onChangeText={setTimeStr}
-                  placeholder="18:30"
-                  placeholderTextColor="#8A3B68"
-                  style={styles.inputField}
-                  className="rounded-xl px-3.5 py-2.5 text-white text-xs font-mono"
-                />
-              </View>
-            </View>
+                {/* Quick Presets */}
+                <View className="flex-row mb-2.5">
+                  {[
+                    { label: "+15m", mins: 15 },
+                    { label: "+1h", mins: 60 },
+                    { label: "+3h", mins: 180 },
+                    { label: "+24h", mins: 1440 },
+                  ].map((preset) => (
+                    <TouchableOpacity
+                      key={preset.label}
+                      onPress={() => applyQuickScheduleOffset(preset.mins)}
+                      className="mr-2 px-3 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                    >
+                      <Text className="text-[10px] font-bold text-[#FF69B4]">
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View className="flex-row mb-4">
+                  <View className="flex-1 mr-2">
+                    <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">
+                      Target Date (YYYY-MM-DD)
+                    </Text>
+                    <TextInput
+                      value={dateStr}
+                      onChangeText={setDateStr}
+                      placeholder="2026-11-08"
+                      placeholderTextColor="#8A3B68"
+                      style={styles.inputField}
+                      className="rounded-xl px-3.5 py-2.5 text-white text-xs font-mono"
+                    />
+                  </View>
+                  <View className="w-32">
+                    <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">
+                      Time (HH:MM 24h)
+                    </Text>
+                    <TextInput
+                      value={timeStr}
+                      onChangeText={setTimeStr}
+                      placeholder="18:30"
+                      placeholderTextColor="#8A3B68"
+                      style={styles.inputField}
+                      className="rounded-xl px-3.5 py-2.5 text-white text-xs font-mono"
+                    />
+                  </View>
+                </View>
+              </>
+            )}
 
             {errorMessage ? (
               <View className="mb-3 px-3 py-2 rounded-xl bg-[#1F0712] border border-[#FF1493]">

@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { GalaxyStateResponse, Task, TaskInput } from "../types/task";
+import { AuthResponse, AuthUser, GalaxyStateResponse, Task, TaskInput } from "../types/task";
 
 const getDefaultBaseUrl = (): string => {
   // If running in Expo Go or development client, dynamically resolve the host PC's Wi-Fi IP
@@ -60,7 +60,7 @@ export const galaxyApi = {
     currentBaseUrl = newUrl.trim().replace(/\/+$/, "");
   },
 
-  async checkHealth(): Promise<{ online: boolean; message: string }> {
+  async checkHealth(): Promise<{ online: boolean; database: string; message: string }> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -69,15 +69,65 @@ export const galaxyApi = {
       });
       clearTimeout(timeoutId);
       if (res.ok) {
-        return { online: true, message: "Backend Connected" };
+        const data = await res.json().catch(() => ({}));
+        return {
+          online: true,
+          database: data.database || "connected",
+          message: "Backend Connected",
+        };
       }
-      return { online: false, message: `HTTP ${res.status}` };
+      return { online: false, database: "offline", message: `HTTP ${res.status}` };
     } catch {
       return {
         online: false,
+        database: "unreachable",
         message: "Backend Unreachable",
       };
     }
+  },
+
+  async register(payload: {
+    email: string;
+    password: string;
+    username?: string;
+  }): Promise<AuthResponse> {
+    const res = await fetch(`${currentBaseUrl}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "Registration failed");
+    }
+    return data;
+  },
+
+  async login(payload: {
+    email: string;
+    password: string;
+  }): Promise<AuthResponse> {
+    const res = await fetch(`${currentBaseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "Authentication failed");
+    }
+    return data;
+  },
+
+  async getMe(token: string): Promise<{ user: AuthUser }> {
+    const res = await fetch(`${currentBaseUrl}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "Session invalid");
+    }
+    return data;
   },
 
   async fetchState(

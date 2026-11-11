@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
+  ScrollView,
   Modal,
   Alert,
   StyleSheet,
@@ -15,18 +16,21 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { GalaxyStateResponse, Task, TaskInput } from "./src/types/task";
+import { GalaxyStateResponse, Task, TaskInput, AuthUser } from "./src/types/task";
 import { notificationService } from "./src/services/notifications";
 import { galaxyApi } from "./src/services/api";
 import { GalaxyHeader } from "./src/components/GalaxyHeader";
 import {
-  TaskFilter,
   CategoryFilterValue,
   StatusFilterValue,
 } from "./src/components/TaskFilter";
 import { TaskCard } from "./src/components/TaskCard";
 import { CreateTaskModal } from "./src/components/CreateTaskModal";
 import { RankProgressionModal } from "./src/components/RankProgressionModal";
+import { AuthScreen } from "./src/screens/AuthScreen";
+import { SettingsScreen } from "./src/screens/SettingsScreen";
+import { NotesScreen } from "./src/screens/NotesScreen";
+import { BottomNavBar, MainViewTab } from "./src/components/BottomNavBar";
 import { useResponsiveLayout } from "./src/hooks/useResponsiveLayout";
 
 /**
@@ -40,6 +44,7 @@ const EMPTY_SERVER_STATE: GalaxyStateResponse = {
     Daily: 0,
     Weekly: 0,
     Monthly: 0,
+    Note: 0,
     Completed: 0,
     Total: 0,
   },
@@ -53,37 +58,85 @@ const EMPTY_SERVER_STATE: GalaxyStateResponse = {
     progressPercentage: 0,
   },
   metadata: {
-    expRewards: { Daily: 30, Weekly: 20, Monthly: 10 },
+    expRewards: { Daily: 30, Weekly: 20, Monthly: 10, Note: 0 },
     rankTiers: [],
     sampleLevelCaps: [],
   },
 };
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [databaseStatus, setDatabaseStatus] = useState<string>("checking...");
+
+  const checkHealth = useCallback(async () => {
+    try {
+      const health = await galaxyApi.checkHealth();
+      setBackendOnline(health.online);
+      setDatabaseStatus(
+        health.database || (health.online ? "connected" : "unreachable")
+      );
+    } catch {
+      setBackendOnline(false);
+      setDatabaseStatus("unreachable");
+    }
+  }, []);
+
+  useEffect(() => {
+    checkHealth();
+  }, [checkHealth]);
+
   return (
     <SafeAreaProvider>
-      <GalaxyQuestMain />
+      {!currentUser && !isGuest ? (
+        <AuthScreen
+          backendOnline={backendOnline}
+          databaseStatus={databaseStatus}
+          onRefreshHealth={checkHealth}
+          onLoginSuccess={(user) => {
+            setCurrentUser(user);
+          }}
+          onContinueAsGuest={() => {
+            setIsGuest(true);
+          }}
+        />
+      ) : (
+        <GalaxyQuestMain
+          currentUser={currentUser}
+          onLogout={() => {
+            setCurrentUser(null);
+            setIsGuest(false);
+          }}
+        />
+      )}
     </SafeAreaProvider>
   );
 }
 
-function GalaxyQuestMain() {
+interface GalaxyQuestMainProps {
+  currentUser: AuthUser | null;
+  onLogout: () => void;
+}
+
+function GalaxyQuestMain({ currentUser, onLogout }: GalaxyQuestMainProps) {
   const {
     isSmallDevice,
     isTablet,
     totalTopPadding,
     horizontalMargin,
-    fabBottom,
-    listBottomPadding,
     hudPadding,
     hudMarginBottom,
     maxContentWidth,
+    bottomInset,
   } = useResponsiveLayout();
 
   const [serverState, setServerState] =
     useState<GalaxyStateResponse>(EMPTY_SERVER_STATE);
   const [loading, setLoading] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
+  const [databaseStatus, setDatabaseStatus] = useState<string>("connected");
+  const [currentTab, setCurrentTab] = useState<MainViewTab>("all");
 
   const [selectedCategory, setSelectedCategory] =
     useState<CategoryFilterValue>("All");
@@ -104,13 +157,28 @@ function GalaxyQuestMain() {
   // Client-side UI debounce lock so rapid taps don't spam overlapping HTTP requests
   const activeToggleLocksRef = useRef<Set<string>>(new Set());
 
+  const handleSelectTab = useCallback(
+    (tab: MainViewTab) => {
+      setCurrentTab(tab);
+      if (tab === "tasks" && selectedCategory === "Note") {
+        setSelectedCategory("All");
+      }
+    },
+    [selectedCategory]
+  );
+
   const currentFilter = useCallback(
     () => ({
-      category: selectedCategory,
-      status: selectedStatus,
-      search: searchQuery,
+      category:
+        currentTab === "notes"
+          ? ("Note" as CategoryFilterValue)
+          : currentTab === "tasks" && selectedCategory === "Note"
+          ? ("All" as CategoryFilterValue)
+          : selectedCategory,
+      status: currentTab === "notes" ? ("All" as StatusFilterValue) : selectedStatus,
+      search: currentTab === "notes" ? "" : searchQuery,
     }),
-    [selectedCategory, selectedStatus, searchQuery]
+    [currentTab, selectedCategory, selectedStatus, searchQuery]
   );
 
   const syncWithBackend = useCallback(async () => {
@@ -118,12 +186,14 @@ function GalaxyQuestMain() {
     try {
       const health = await galaxyApi.checkHealth();
       setBackendOnline(health.online);
+      setDatabaseStatus(health.database || (health.online ? "connected" : "unreachable"));
       if (health.online) {
         const freshState = await galaxyApi.fetchState(currentFilter());
         setServerState(freshState);
       }
     } catch {
       setBackendOnline(false);
+      setDatabaseStatus("unreachable");
     } finally {
       setLoading(false);
     }
@@ -314,79 +384,230 @@ function GalaxyQuestMain() {
       {/* Dark theme status bar across iOS & Android */}
       <StatusBar style="light" />
 
-      {/* Main Responsive Container */}
-      <View
-        style={{
-          flex: 1,
-          width: "100%",
-          maxWidth: isTablet ? maxContentWidth : undefined,
-          alignSelf: "center",
-          paddingTop: totalTopPadding,
-        }}
-      >
-        {/* RPG Level, EXP, & Rank Tier HUD (Rendered from Backend State) */}
-        <GalaxyHeader
+      {currentTab === "settings" ? (
+        <SettingsScreen
+          currentUser={currentUser}
           progress={serverState.progress}
-          completedCount={serverState.counts.Completed}
-          totalCount={serverState.counts.Total}
-          notificationsEnabled={notificationsEnabled}
           backendOnline={backendOnline}
-          onPressRankInfo={() => setRankModalVisible(true)}
-          onPressBackendConfig={() => {
-            setApiUrlInput(galaxyApi.getBaseUrl());
-            setApiConfigVisible(true);
-          }}
-          horizontalMargin={horizontalMargin}
-          hudPadding={hudPadding}
-          hudMarginBottom={hudMarginBottom}
-          isSmallDevice={isSmallDevice}
+          databaseStatus={databaseStatus}
+          onLogout={onLogout}
+          onRefreshHealth={syncWithBackend}
         />
+      ) : currentTab === "notes" ? (
+        <NotesScreen
+          notes={serverState.tasks.filter((t) => t.category === "Note")}
+          loading={loading}
+          onRefresh={syncWithBackend}
+          onToggleStatus={(id) => {
+            const noteTask = serverState.tasks.find((t) => t.id === id);
+            if (noteTask) {
+              handleToggleStatus(noteTask);
+            }
+          }}
+          onEditNote={(note) => {
+            setEditingTask(note);
+            setModalVisible(true);
+          }}
+          onDeleteNote={handleDeleteTask}
+          onAddNewNote={() => {
+            setEditingTask(null);
+            setModalVisible(true);
+          }}
+        />
+      ) : (
+        /* Main Responsive Container */
+        <View
+          style={{
+            flex: 1,
+            width: "100%",
+            maxWidth: isTablet ? maxContentWidth : undefined,
+            alignSelf: "center",
+            paddingTop: totalTopPadding,
+          }}
+        >
+          {/* RPG Level, EXP, & Rank Tier HUD (Rendered from Backend State) */}
+          <GalaxyHeader
+            progress={serverState.progress}
+            completedCount={serverState.counts.Completed}
+            totalCount={serverState.counts.Total}
+            notificationsEnabled={notificationsEnabled}
+            backendOnline={backendOnline}
+            onPressRankInfo={() => setRankModalVisible(true)}
+            onPressBackendConfig={() => {
+              setApiUrlInput(galaxyApi.getBaseUrl());
+              setApiConfigVisible(true);
+            }}
+            horizontalMargin={horizontalMargin}
+            hudPadding={hudPadding}
+            hudMarginBottom={hudMarginBottom}
+            isSmallDevice={isSmallDevice}
+          />
 
-        {/* Search Bar */}
+          {/* Search Bar */}
+          <View
+            style={{
+              paddingHorizontal: horizontalMargin,
+              marginTop: isSmallDevice ? 2 : 4,
+            }}
+          >
+            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4] mb-1.5">
+              {currentTab === "all"
+                ? "✦ Galaxy Directives • All Tasks & Notes"
+                : "✦ EXP Missions • Daily, Weekly & Monthly"}
+            </Text>
+            <View
+              style={[styles.searchBox, { height: isSmallDevice ? 40 : 44 }]}
+              className="rounded-2xl px-3.5 flex-row items-center"
+            >
+              <Text className="text-[#FF1493] mr-2 text-xs">✦</Text>
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={
+                  currentTab === "all"
+                    ? "Scan all tasks & notes..."
+                    : "Scan EXP missions..."
+                }
+                placeholderTextColor="#8A3B68"
+                className="flex-1 text-xs text-white p-0"
+              />
+              {searchQuery ? (
+                <TouchableOpacity
+                  onPress={() => setSearchQuery("")}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text className="text-[#FF69B4] font-bold text-xs">✕</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Category Filter Pills */}
+          <View
+            style={{
+              paddingHorizontal: horizontalMargin,
+              marginTop: isSmallDevice ? 4 : 6,
+            }}
+            className="flex-row items-center"
+          >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {(currentTab === "all"
+                ? ([
+                    { key: "All", label: "All", count: serverState.counts.All },
+                    { key: "Daily", label: "Daily", count: serverState.counts.Daily },
+                    { key: "Weekly", label: "Weekly", count: serverState.counts.Weekly },
+                    { key: "Monthly", label: "Monthly", count: serverState.counts.Monthly },
+                    { key: "Note", label: "Notes", count: serverState.counts.Note || 0 },
+                  ] as const)
+                : ([
+                    {
+                      key: "All",
+                      label: "All",
+                      count:
+                        serverState.counts.Daily +
+                        serverState.counts.Weekly +
+                        serverState.counts.Monthly,
+                    },
+                    { key: "Daily", label: "Daily", count: serverState.counts.Daily },
+                    { key: "Weekly", label: "Weekly", count: serverState.counts.Weekly },
+                    { key: "Monthly", label: "Monthly", count: serverState.counts.Monthly },
+                  ] as const)
+              ).map((cat) => {
+                const isSelected = selectedCategory === cat.key;
+                return (
+                  <TouchableOpacity
+                    key={cat.key}
+                    onPress={() => setSelectedCategory(cat.key as CategoryFilterValue)}
+                    style={
+                      isSelected
+                        ? styles.activeCategoryPill
+                        : styles.inactiveCategoryPill
+                    }
+                    className="mr-2 px-3 py-1.5 rounded-full flex-row items-center"
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      className={`text-xs font-bold ${
+                        isSelected ? "text-black font-black" : "text-[#FFB6C1]"
+                      }`}
+                    >
+                      {cat.label}
+                    </Text>
+                    {cat.count > 0 && (
+                      <View
+                        style={
+                          isSelected
+                            ? styles.activeCountBadge
+                            : styles.inactiveCountBadge
+                        }
+                        className="ml-1.5 px-1.5 py-0.2 rounded-full"
+                      >
+                        <Text
+                          className={`text-[9px] font-black ${
+                            isSelected ? "text-white" : "text-[#FF69B4]"
+                          }`}
+                        >
+                          {cat.count}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+        {/* Status Filter Pills */}
         <View
           style={{
             paddingHorizontal: horizontalMargin,
-            marginTop: isSmallDevice ? 2 : 4,
+            marginTop: isSmallDevice ? 4 : 6,
+            marginBottom: isSmallDevice ? 4 : 6,
           }}
+          className="flex-row items-center justify-between"
         >
-          <View
-            style={[styles.searchBox, { height: isSmallDevice ? 40 : 44 }]}
-            className="rounded-2xl px-3.5 flex-row items-center"
-          >
-            <Text className="text-[#FF1493] mr-2 text-xs">✦</Text>
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Scan galaxy missions..."
-              placeholderTextColor="#8A3B68"
-              className="flex-1 text-xs text-white p-0"
-            />
-            {searchQuery ? (
-              <TouchableOpacity
-                onPress={() => setSearchQuery("")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text className="text-[#FF69B4] font-bold text-xs">✕</Text>
-              </TouchableOpacity>
-            ) : null}
+          <Text className="text-[10px] font-bold uppercase tracking-widest text-[#8A3B68]">
+            Status:
+          </Text>
+          <View className="flex-row items-center">
+            {(["All", "Pending", "Done"] as StatusFilterValue[]).map((status) => {
+              const isSelected = selectedStatus === status;
+              return (
+                <TouchableOpacity
+                  key={status}
+                  onPress={() => setSelectedStatus(status)}
+                  style={
+                    isSelected
+                      ? styles.activeStatusPill
+                      : styles.inactiveStatusPill
+                  }
+                  className="ml-1.5 px-3 py-1 rounded-full"
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    className={`text-[10px] font-bold uppercase tracking-wider ${
+                      isSelected ? "text-[#FF1493]" : "text-[#8A3B68]"
+                    }`}
+                  >
+                    {status === "Pending"
+                      ? "⏳ Pending"
+                      : status === "Done"
+                      ? "✓ Done"
+                      : "All"}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* Category (Daily / Weekly / Monthly) & Status Filter */}
-        <TaskFilter
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          selectedStatus={selectedStatus}
-          onSelectStatus={setSelectedStatus}
-          counts={serverState.counts}
-          expRewards={serverState.metadata.expRewards}
-          horizontalMargin={horizontalMargin}
-          isSmallDevice={isSmallDevice}
-        />
-
-        {/* Mission List */}
+        {/* Task List */}
         <FlatList
-          data={serverState.tasks}
+          data={
+            currentTab === "tasks"
+              ? serverState.tasks.filter((t) => t.category !== "Note")
+              : serverState.tasks
+          }
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <TaskCard
@@ -403,7 +624,7 @@ function GalaxyQuestMain() {
             />
           )}
           contentContainerStyle={{
-            paddingBottom: listBottomPadding,
+            paddingBottom: (isSmallDevice ? 85 : 95) + Math.max(bottomInset, 8),
             paddingTop: 4,
           }}
           refreshControl={
@@ -416,52 +637,54 @@ function GalaxyQuestMain() {
           }
           ListEmptyComponent={
             <View className="items-center justify-center py-16 px-6">
-              <Text className="text-3xl mb-2">🌌</Text>
+              <Text className="text-3xl mb-2">{currentTab === "all" ? "🌌" : "🚀"}</Text>
               <Text className="text-base font-extrabold text-white">
                 {backendOnline
-                  ? "No Missions in Sector"
+                  ? currentTab === "all"
+                    ? "No Directives in Sector"
+                    : "No Missions in Sector"
                   : "Awaiting Backend Connection"}
               </Text>
               <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1">
                 {!backendOnline
                   ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline ⚙' above to configure your backend URL."
                   : searchQuery
-                  ? `No tasks matching "${searchQuery}"`
+                  ? `No items matching "${searchQuery}"`
+                  : currentTab === "all"
+                  ? "Tap the neon + button below to create a Task or Note."
                   : "Tap the neon + button below to deploy a Daily, Weekly, or Monthly mission."}
               </Text>
             </View>
           }
         />
-
-        {/* Floating Neon Pink Action Button */}
-        <View
-          style={{
-            position: "absolute",
-            bottom: fabBottom,
-            right: Math.max(20, horizontalMargin + 4),
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => {
-              setEditingTask(null);
-              setModalVisible(true);
-            }}
-            style={styles.fab}
-            className="rounded-full items-center justify-center"
-            activeOpacity={0.85}
-            accessibilityLabel="Create new task"
-          >
-            <Text className="text-black text-3xl font-black leading-none mb-0.5">
-              +
-            </Text>
-          </TouchableOpacity>
         </View>
+      )}
+
+      {/* Docked Cyberpunk Bottom Navigation Bar */}
+      <BottomNavBar
+        currentTab={currentTab}
+        onSelectTab={handleSelectTab}
+        allCount={serverState.counts.All}
+        tasksCount={
+          serverState.counts.Daily +
+          serverState.counts.Weekly +
+          serverState.counts.Monthly
+        }
+        notesCount={serverState.counts.Note || 0}
+        onPressAdd={() => {
+          setEditingTask(null);
+          setModalVisible(true);
+        }}
+        bottomInset={bottomInset}
+        isSmallDevice={isSmallDevice}
+      />
 
         {/* Create / Edit Task Modal */}
         <CreateTaskModal
           visible={modalVisible}
           editingTask={editingTask}
           expRewards={serverState.metadata.expRewards}
+          defaultCategory={currentTab === "notes" ? "Note" : "Daily"}
           onClose={() => {
             setModalVisible(false);
             setEditingTask(null);
@@ -562,7 +785,6 @@ function GalaxyQuestMain() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
-      </View>
     </View>
   );
 }
@@ -577,6 +799,37 @@ const styles = StyleSheet.create({
     backgroundColor: "#0B0B0B",
     borderWidth: 1.5,
     borderColor: "#FF1493",
+  },
+  activeStatusPill: {
+    backgroundColor: "#140710",
+    borderWidth: 1,
+    borderColor: "#FF1493",
+  },
+  inactiveStatusPill: {
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1,
+    borderColor: "#1F0B17",
+  },
+  activeCategoryPill: {
+    backgroundColor: "#FF1493",
+    borderWidth: 1,
+    borderColor: "#FF69B4",
+    shadowColor: "#FF1493",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  inactiveCategoryPill: {
+    backgroundColor: "#140710",
+    borderWidth: 1,
+    borderColor: "#2E1122",
+  },
+  activeCountBadge: {
+    backgroundColor: "#000000",
+  },
+  inactiveCountBadge: {
+    backgroundColor: "#2E1122",
   },
   fab: {
     width: 60,
