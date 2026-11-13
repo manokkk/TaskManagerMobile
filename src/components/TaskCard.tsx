@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Task } from "../types/task";
+import { GalaxyIcon } from "./GalaxyIcon";
 
 interface TaskCardProps {
   task: Task;
@@ -14,11 +15,9 @@ interface TaskCardProps {
 function formatScheduledDateTime(isoString: string): string {
   const date = new Date(isoString);
   if (isNaN(date.getTime())) return "Unscheduled";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
@@ -32,8 +31,9 @@ export const TaskCard = ({
   isSmallDevice = false,
 }: TaskCardProps) => {
   const isDone = task.status === "Done";
+  const isNote = task.category === "Note";
   const isOverdue =
-    !isDone && new Date(task.scheduledAt).getTime() < Date.now();
+    !isDone && !isNote && new Date(task.scheduledAt).getTime() < Date.now();
 
   return (
     <View
@@ -56,9 +56,7 @@ export const TaskCard = ({
             className="w-7 h-7 rounded-lg mr-3 mt-0.5 items-center justify-center"
           >
             {isDone ? (
-              <Text className="text-black text-sm font-black leading-none">
-                ✓
-              </Text>
+              <GalaxyIcon name="check" size={14} color="#000000" strokeWidth={2.5} />
             ) : (
               <View className="w-2 h-2 rounded-full bg-[#FF1493]/30" />
             )}
@@ -118,7 +116,7 @@ export const TaskCard = ({
             className="p-1.5 mr-1 rounded-lg bg-[#140710] border border-[#2E1122]"
             accessibilityLabel="Edit task"
           >
-            <Text className="text-[#FF69B4] text-xs font-bold">✎</Text>
+            <GalaxyIcon name="edit" size={14} color="#FF69B4" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -126,37 +124,45 @@ export const TaskCard = ({
             className="p-1.5 rounded-lg bg-[#140710] border border-[#2E1122]"
             accessibilityLabel="Delete task"
           >
-            <Text className="text-[#FF1493] text-xs font-bold">✕</Text>
+            <GalaxyIcon name="trash" size={14} color="#FF1493" />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Footer: Target Schedule & Push Notification Telemetry */}
-      <View className="flex-row items-center justify-between mt-2.5 pt-2 border-t border-[#1F0B17]">
-        <View className="flex-row items-center">
-          <Text className="text-xs mr-1.5">
-            {isDone ? "✨" : task.notificationId ? "🔔" : "⏰"}
-          </Text>
-          <Text
-            className={`text-[11px] font-semibold ${
-              isDone
-                ? "text-[#8A3B68]"
-                : isOverdue
-                ? "text-[#FF1493]"
-                : "text-[#FFB6C1]"
-            }`}
-          >
-            {formatScheduledDateTime(task.scheduledAt)}
-            {isOverdue ? " (Due)" : ""}
-          </Text>
-        </View>
+      {/* Footer: Target Schedule & Push Notification Telemetry (hidden for Notes) */}
+      {!isNote && (
+        <View className="flex-row items-center justify-between mt-2.5 pt-2 border-t border-[#1F0B17]">
+          <View className="flex-row items-center">
+            <View className="mr-1.5">
+              <GalaxyIcon
+                name={isDone ? "sparkles" : task.notificationId ? "bell" : "calendar"}
+                size={13}
+                color={isDone ? "#8A3B68" : isOverdue ? "#FF1493" : "#FFB6C1"}
+              />
+            </View>
+            <Text
+              className={`text-[11px] font-semibold ${
+                isDone
+                  ? "text-[#8A3B68]"
+                  : isOverdue
+                  ? "text-[#FF1493]"
+                  : "text-[#FFB6C1]"
+              }`}
+            >
+              {formatScheduledDateTime(task.scheduledAt)}
+              {isOverdue ? " (Due)" : ""}
+            </Text>
+          </View>
 
-        <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4]">
-          {isDone
-            ? `Claimed +${task.expReward} EXP`
-            : `Complete for +${task.expReward} EXP`}
-        </Text>
-      </View>
+          {task.expReward > 0 && (
+            <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4]">
+              {isDone
+                ? `Claimed +${task.expReward} EXP`
+                : `Complete for +${task.expReward} EXP`}
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 };

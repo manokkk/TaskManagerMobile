@@ -34,6 +34,7 @@ import { AuthScreen } from "./src/screens/AuthScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { NotesScreen } from "./src/screens/NotesScreen";
 import { BottomNavBar, MainViewTab } from "./src/components/BottomNavBar";
+import { GalaxyIcon } from "./src/components/GalaxyIcon";
 import { useResponsiveLayout } from "./src/hooks/useResponsiveLayout";
 
 /**
@@ -578,16 +579,23 @@ function GalaxyQuestMain({
               marginTop: isSmallDevice ? 2 : 4,
             }}
           >
-            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4] mb-1.5">
-              {currentTab === "all"
-                ? "✦ Galaxy Directives • All Tasks & Notes"
-                : "✦ EXP Missions • Daily, Weekly & Monthly"}
-            </Text>
+            <View className="flex-row items-center mb-1.5">
+              <View className="mr-1.5">
+                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+              </View>
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                {currentTab === "all"
+                  ? "Galaxy Directives • All Tasks & Notes"
+                  : "EXP Missions • Daily, Weekly & Monthly"}
+              </Text>
+            </View>
             <View
               style={[styles.searchBox, { height: isSmallDevice ? 40 : 44 }]}
               className="rounded-2xl px-3.5 flex-row items-center"
             >
-              <Text className="text-[#FF1493] mr-2 text-xs">✦</Text>
+              <View className="mr-2">
+                <GalaxyIcon name="search" size={14} color="#FF1493" />
+              </View>
               <TextInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -604,7 +612,7 @@ function GalaxyQuestMain({
                   onPress={() => setSearchQuery("")}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text className="text-[#FF69B4] font-bold text-xs">✕</Text>
+                  <GalaxyIcon name="close" size={14} color="#FF69B4" />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -700,6 +708,7 @@ function GalaxyQuestMain({
           <View className="flex-row items-center">
             {(["All", "Pending", "Done"] as StatusFilterValue[]).map((status) => {
               const isSelected = selectedStatus === status;
+              const statusColor = isSelected ? "#FF1493" : "#8A3B68";
               return (
                 <TouchableOpacity
                   key={status}
@@ -709,19 +718,25 @@ function GalaxyQuestMain({
                       ? styles.activeStatusPill
                       : styles.inactiveStatusPill
                   }
-                  className="ml-1.5 px-3 py-1 rounded-full"
+                  className="ml-1.5 px-3 py-1 rounded-full flex-row items-center"
                   activeOpacity={0.7}
                 >
+                  {status === "Pending" && (
+                    <View className="mr-1">
+                      <GalaxyIcon name="clock" size={10} color={statusColor} />
+                    </View>
+                  )}
+                  {status === "Done" && (
+                    <View className="mr-1">
+                      <GalaxyIcon name="check" size={10} color={statusColor} />
+                    </View>
+                  )}
                   <Text
                     className={`text-[10px] font-bold uppercase tracking-wider ${
                       isSelected ? "text-[#FF1493]" : "text-[#8A3B68]"
                     }`}
                   >
-                    {status === "Pending"
-                      ? "⏳ Pending"
-                      : status === "Done"
-                      ? "✓ Done"
-                      : "All"}
+                    {status}
                   </Text>
                 </TouchableOpacity>
               );
@@ -765,7 +780,13 @@ function GalaxyQuestMain({
           }
           ListEmptyComponent={
             <View className="items-center justify-center py-16 px-6">
-              <Text className="text-3xl mb-2">{currentTab === "all" ? "🌌" : "🚀"}</Text>
+              <View className="mb-3">
+                <GalaxyIcon
+                  name={currentTab === "all" ? "galaxy" : "rocket"}
+                  size={36}
+                  color="#FF1493"
+                />
+              </View>
               <Text className="text-base font-extrabold text-white">
                 {backendOnline
                   ? currentTab === "all"
@@ -775,7 +796,7 @@ function GalaxyQuestMain({
               </Text>
               <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1">
                 {!backendOnline
-                  ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline ⚙' above to configure your backend URL."
+                  ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline' above to configure your backend URL."
                   : searchQuery
                   ? `No items matching "${searchQuery}"`
                   : currentTab === "all"
@@ -843,9 +864,14 @@ function GalaxyQuestMain({
               style={styles.configCard}
               className="rounded-3xl p-5 w-full max-w-sm"
             >
-              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-                ✦ Security & Server Authority
-              </Text>
+              <View className="flex-row items-center">
+                <View className="mr-1.5">
+                  <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+                </View>
+                <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                  Security & Server Authority
+                </Text>
+              </View>
               <Text className="text-lg font-black text-white mt-0.5 mb-1">
                 Backend Endpoint
               </Text>
@@ -860,26 +886,35 @@ function GalaxyQuestMain({
                   onPress={() =>
                     setApiUrlInput("http://192.168.100.51:5000/api")
                   }
-                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493]"
+                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493] flex-row items-center"
                 >
+                  <View className="mr-1">
+                    <GalaxyIcon name="smartphone" size={11} color="#FF69B4" />
+                  </View>
                   <Text className="text-[10px] font-bold text-[#FF69B4]">
-                    📱 Wi-Fi: 192.168.100.51
+                    Wi-Fi: 192.168.100.51
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
-                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
                 >
+                  <View className="mr-1">
+                    <GalaxyIcon name="cpu" size={11} color="#FFB6C1" />
+                  </View>
                   <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                    🤖 Emulator (10.0.2.2)
+                    Emulator (10.0.2.2)
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setApiUrlInput("http://localhost:5000/api")}
-                  className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                  className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
                 >
+                  <View className="mr-1">
+                    <GalaxyIcon name="monitor" size={11} color="#FFB6C1" />
+                  </View>
                   <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                    💻 Localhost
+                    Localhost
                   </Text>
                 </TouchableOpacity>
               </View>

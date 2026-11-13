@@ -1,5 +1,6 @@
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { GamificationMetadata, UserProgress } from "../types/task";
+import { GalaxyIcon, getRankIconName } from "./GalaxyIcon";
 
 interface RankProgressionModalProps {
   visible: boolean;
@@ -30,9 +31,14 @@ export const RankProgressionModal = ({
             {/* Header */}
             <View className="flex-row items-center justify-between mb-4">
               <View>
-                <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-                  ✦ Server-Authoritative RPG Matrix
-                </Text>
+                <View className="flex-row items-center">
+                  <View className="mr-1.5">
+                    <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+                  </View>
+                  <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                    Server-Authoritative RPG Matrix
+                  </Text>
+                </View>
                 <Text className="text-xl font-black text-white mt-0.5">
                   Cosmic Rank Codex
                 </Text>
@@ -41,7 +47,7 @@ export const RankProgressionModal = ({
                 onPress={onClose}
                 className="w-8 h-8 rounded-full bg-[#140710] border border-[#FF1493] items-center justify-center"
               >
-                <Text className="text-[#FF1493] font-bold text-sm">✕</Text>
+                <GalaxyIcon name="close" size={14} color="#FF1493" />
               </TouchableOpacity>
             </View>
 
@@ -105,7 +111,19 @@ export const RankProgressionModal = ({
                     className="flex-row items-center justify-between px-3.5 py-2.5 rounded-2xl mb-2"
                   >
                     <View className="flex-row items-center">
-                      <Text className="text-base mr-2.5">{tier.insignia}</Text>
+                      <View className="mr-2.5">
+                        <GalaxyIcon
+                          name={getRankIconName(tier.rank)}
+                          size={18}
+                          color={
+                            isCurrent
+                              ? "#FF1493"
+                              : isUnlocked
+                              ? "#FFB6C1"
+                              : "#8A3B68"
+                          }
+                        />
+                      </View>
                       <View>
                         <Text
                           className={`text-xs font-black uppercase ${

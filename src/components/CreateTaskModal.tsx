@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Task, TaskCategory, TaskInput } from "../types/task";
+import { GalaxyIcon } from "./GalaxyIcon";
 
 interface CreateTaskModalProps {
   visible: boolean;
@@ -22,18 +23,24 @@ interface CreateTaskModalProps {
   onSubmit: (input: TaskInput, existingTaskId?: string) => void;
 }
 
-function padTwo(num: number): string {
-  return String(num).padStart(2, "0");
-}
-
-function toDateInputString(date: Date): string {
-  return `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(
-    date.getDate()
-  )}`;
-}
-
-function toTimeInputString(date: Date): string {
-  return `${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
+function getCategoryScheduledAt(category: TaskCategory): string {
+  const target = new Date();
+  if (category === "Daily") {
+    target.setDate(target.getDate() + 1);
+    target.setHours(0, 0, 0, 0);
+    return target.toISOString();
+  }
+  if (category === "Weekly") {
+    target.setDate(target.getDate() + 7);
+    target.setHours(0, 0, 0, 0);
+    return target.toISOString();
+  }
+  if (category === "Monthly") {
+    target.setMonth(target.getMonth() + 1);
+    target.setHours(0, 0, 0, 0);
+    return target.toISOString();
+  }
+  return target.toISOString();
 }
 
 export const CreateTaskModal = ({
@@ -48,8 +55,6 @@ export const CreateTaskModal = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<TaskCategory>("Daily");
-  const [dateStr, setDateStr] = useState("");
-  const [timeStr, setTimeStr] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -57,31 +62,15 @@ export const CreateTaskModal = ({
     setErrorMessage(null);
 
     if (editingTask) {
-      const existingDate = new Date(editingTask.scheduledAt);
-      const validDate = isNaN(existingDate.getTime())
-        ? new Date(Date.now() + 3600000)
-        : existingDate;
       setTitle(editingTask.title);
       setDescription(editingTask.description || "");
       setCategory(editingTask.category);
-      setDateStr(toDateInputString(validDate));
-      setTimeStr(toTimeInputString(validDate));
     } else {
-      const defaultFuture = new Date(Date.now() + 60 * 60 * 1000);
       setTitle("");
       setDescription("");
       setCategory(defaultCategory || "Daily");
-      setDateStr(toDateInputString(defaultFuture));
-      setTimeStr(toTimeInputString(defaultFuture));
     }
   }, [visible, editingTask, defaultCategory]);
-
-  const applyQuickScheduleOffset = (minutesFromNow: number) => {
-    const target = new Date(Date.now() + minutesFromNow * 60 * 1000);
-    setDateStr(toDateInputString(target));
-    setTimeStr(toTimeInputString(target));
-    setErrorMessage(null);
-  };
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -89,61 +78,20 @@ export const CreateTaskModal = ({
       return;
     }
 
-    // Notes do not require calendar schedule
-    if (category === "Note") {
-      onSubmit(
-        {
-          title: title.trim(),
-          description: description.trim() || undefined,
-          category: "Note",
-          scheduledAt: new Date().toISOString(),
-        },
-        editingTask?.id
-      );
-      onClose();
-      return;
-    }
-
-    const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-    const timeParts = /^(\d{2}):(\d{2})$/.exec(timeStr.trim());
-
-    if (!dateParts || !timeParts) {
-      setErrorMessage("Enter Date as YYYY-MM-DD and Time as HH:MM (24h).");
-      return;
-    }
-
-    const year = Number(dateParts[1]);
-    const month = Number(dateParts[2]) - 1;
-    const day = Number(dateParts[3]);
-    const hours = Number(timeParts[1]);
-    const minutes = Number(timeParts[2]);
-
-    if (
-      month < 0 ||
-      month > 11 ||
-      day < 1 ||
-      day > 31 ||
-      hours < 0 ||
-      hours > 23 ||
-      minutes < 0 ||
-      minutes > 59
-    ) {
-      setErrorMessage("Invalid calendar date or 24-hour time values.");
-      return;
-    }
-
-    const constructedDate = new Date(year, month, day, hours, minutes, 0, 0);
-    if (isNaN(constructedDate.getTime())) {
-      setErrorMessage("Could not parse the target schedule.");
-      return;
-    }
+    const scheduledAt =
+      editingTask &&
+      editingTask.category === category &&
+      editingTask.scheduledAt &&
+      !isNaN(new Date(editingTask.scheduledAt).getTime())
+        ? editingTask.scheduledAt
+        : getCategoryScheduledAt(category);
 
     onSubmit(
       {
         title: title.trim(),
         description: description.trim() || undefined,
         category,
-        scheduledAt: constructedDate.toISOString(),
+        scheduledAt,
       },
       editingTask?.id
     );
@@ -186,7 +134,7 @@ export const CreateTaskModal = ({
                 onPress={onClose}
                 className="w-8 h-8 rounded-full bg-[#140710] border border-[#FF1493] items-center justify-center"
               >
-                <Text className="text-[#FF1493] font-bold text-sm">✕</Text>
+                <GalaxyIcon name="close" size={14} color="#FF1493" />
               </TouchableOpacity>
             </View>
 
@@ -258,89 +206,13 @@ export const CreateTaskModal = ({
               className="rounded-xl px-4 py-3 text-white text-sm mb-4 min-h-[72px]"
             />
 
-            {/* Target Date & Time or Note Notice */}
-            {category === "Note" ? (
-              <View
-                style={{
-                  backgroundColor: "#140710",
-                  borderWidth: 1,
-                  borderColor: "#2E1122",
-                }}
-                className="p-3.5 rounded-2xl mb-4"
-              >
-                <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4] mb-1">
-                  📝 Untimed Note Memo
-                </Text>
-                <Text className="text-xs text-[#FFB6C1]/80">
-                  Notes are quick ideas, memos, and tasks that are not included in daily, weekly, or monthly schedules.
-                </Text>
-              </View>
-            ) : (
-              <>
-                <View className="flex-row items-center justify-between mb-1.5">
-                  <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1]">
-                    🔔 Push Alert Schedule
-                  </Text>
-                  <Text className="text-[10px] text-[#FF69B4] font-semibold">
-                    Local Timezone
-                  </Text>
-                </View>
-
-                {/* Quick Presets */}
-                <View className="flex-row mb-2.5">
-                  {[
-                    { label: "+15m", mins: 15 },
-                    { label: "+1h", mins: 60 },
-                    { label: "+3h", mins: 180 },
-                    { label: "+24h", mins: 1440 },
-                  ].map((preset) => (
-                    <TouchableOpacity
-                      key={preset.label}
-                      onPress={() => applyQuickScheduleOffset(preset.mins)}
-                      className="mr-2 px-3 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
-                    >
-                      <Text className="text-[10px] font-bold text-[#FF69B4]">
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <View className="flex-row mb-4">
-                  <View className="flex-1 mr-2">
-                    <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">
-                      Target Date (YYYY-MM-DD)
-                    </Text>
-                    <TextInput
-                      value={dateStr}
-                      onChangeText={setDateStr}
-                      placeholder="2026-11-08"
-                      placeholderTextColor="#8A3B68"
-                      style={styles.inputField}
-                      className="rounded-xl px-3.5 py-2.5 text-white text-xs font-mono"
-                    />
-                  </View>
-                  <View className="w-32">
-                    <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">
-                      Time (HH:MM 24h)
-                    </Text>
-                    <TextInput
-                      value={timeStr}
-                      onChangeText={setTimeStr}
-                      placeholder="18:30"
-                      placeholderTextColor="#8A3B68"
-                      style={styles.inputField}
-                      className="rounded-xl px-3.5 py-2.5 text-white text-xs font-mono"
-                    />
-                  </View>
-                </View>
-              </>
-            )}
-
             {errorMessage ? (
-              <View className="mb-3 px-3 py-2 rounded-xl bg-[#1F0712] border border-[#FF1493]">
-                <Text className="text-xs font-semibold text-[#FF69B4]">
-                  ⚠️ {errorMessage}
+              <View className="mb-3 px-3 py-2 rounded-xl bg-[#1F0712] border border-[#FF1493] flex-row items-center">
+                <View className="mr-1.5">
+                  <GalaxyIcon name="alert" size={14} color="#FF69B4" />
+                </View>
+                <Text className="text-xs font-semibold text-[#FF69B4] flex-1">
+                  {errorMessage}
                 </Text>
               </View>
             ) : null}

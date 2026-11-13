@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { UserProgress } from "../types/task";
+import { GalaxyIcon } from "./GalaxyIcon";
 
 interface GalaxyHeaderProps {
   progress: UserProgress;
@@ -64,10 +65,11 @@ export const GalaxyHeader = ({
             />
             <Text
               numberOfLines={1}
-              className="text-[10px] font-bold tracking-widest uppercase text-[#FF69B4]"
+              className="text-[10px] font-bold tracking-widest uppercase text-[#FF69B4] mr-1"
             >
-              {backendOnline ? "Server Authoritative ⚙" : "Server Offline ⚙"}
+              {backendOnline ? "Server Authoritative" : "Server Offline"}
             </Text>
+            <GalaxyIcon name="settings" size={11} color="#FF69B4" />
           </TouchableOpacity>
           <Text
             numberOfLines={1}
@@ -90,11 +92,16 @@ export const GalaxyHeader = ({
           accessibilityRole="button"
           accessibilityLabel="View rank progression details"
         >
-          <Text className="text-xs mr-1">⚡</Text>
+          <View className="mr-1.5">
+            <GalaxyIcon name="zap" size={14} color="#FF1493" />
+          </View>
           <View>
-            <Text className="text-[9px] uppercase tracking-widest text-[#FFB6C1] font-bold">
-              Rank Tier ⓘ
-            </Text>
+            <View className="flex-row items-center">
+              <Text className="text-[9px] uppercase tracking-widest text-[#FFB6C1] font-bold mr-1">
+                Rank Tier
+              </Text>
+              <GalaxyIcon name="info" size={10} color="#FFB6C1" />
+            </View>
             <Text className="text-xs font-extrabold text-[#FF1493] uppercase tracking-wider">
               {progress.rank}
             </Text>

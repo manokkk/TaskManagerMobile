@@ -1,5 +1,6 @@
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { GalaxyIcon } from "./GalaxyIcon";
 
 interface SessionLoadingScreenProps {
   statusMessage?: string;
@@ -22,7 +23,7 @@ export const SessionLoadingScreen = ({
           style={styles.emblemCircle}
           className="mb-4 items-center justify-center"
         >
-          <Text style={{ fontSize: 36 }}>🌌</Text>
+          <GalaxyIcon name="galaxy" size={34} color="#FF1493" />
         </View>
 
         <Text
@@ -32,9 +33,13 @@ export const SessionLoadingScreen = ({
           GALAXY QUEST
         </Text>
 
-        <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4] mt-1 mb-5">
-          ✦ 7-Day Session Security Check ✦
-        </Text>
+        <View className="flex-row items-center mt-1 mb-5">
+          <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+          <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4] mx-1.5">
+            7-Day Session Security Check
+          </Text>
+          <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+        </View>
 
         <View
           style={styles.statusBox}

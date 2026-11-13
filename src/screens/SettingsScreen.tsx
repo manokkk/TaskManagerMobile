@@ -15,6 +15,7 @@ import { AuthUser, UserProgress } from "../types/task";
 import { galaxyApi } from "../services/api";
 import { sessionStorage } from "../services/sessionStorage";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { GalaxyIcon } from "../components/GalaxyIcon";
 
 interface SettingsScreenProps {
   currentUser: AuthUser | null;
@@ -80,9 +81,14 @@ export const SettingsScreen = ({
         <View style={{ width: "100%", maxWidth: isTablet ? 500 : maxContentWidth, alignSelf: "center" }}>
           {/* Header */}
           <View className="mb-5">
-            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-              ✦ System & Commander Matrix
-            </Text>
+            <View className="flex-row items-center">
+              <View className="mr-1.5">
+                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+              </View>
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                System & Commander Matrix
+              </Text>
+            </View>
             <Text className="text-2xl font-black text-white mt-0.5">
               Command Deck Settings
             </Text>
@@ -96,7 +102,7 @@ export const SettingsScreen = ({
 
             <View className="flex-row items-center mb-3">
               <View style={styles.avatarBox} className="mr-3 items-center justify-center">
-                <Text style={{ fontSize: 24 }}>🎖️</Text>
+                <GalaxyIcon name="shield" size={22} color="#FF1493" />
               </View>
               <View className="flex-1">
                 <Text className="text-lg font-black text-white" numberOfLines={1}>
@@ -126,9 +132,14 @@ export const SettingsScreen = ({
             {currentUser && (
               <View className="mt-2.5 pt-2.5 border-t border-[#2E1122] flex-row items-center justify-between">
                 <Text className="text-[10px] text-[#FFB6C1]/70">7-Day Session</Text>
-                <Text className="text-[11px] font-mono font-bold text-[#10B981]">
-                  ⏳ {sessionInfo.label}
-                </Text>
+                <View className="flex-row items-center">
+                  <View className="mr-1.5">
+                    <GalaxyIcon name="clock" size={12} color="#10B981" />
+                  </View>
+                  <Text className="text-[11px] font-mono font-bold text-[#10B981]">
+                    {sessionInfo.label}
+                  </Text>
+                </View>
               </View>
             )}
           </View>
@@ -200,17 +211,19 @@ export const SettingsScreen = ({
               <TouchableOpacity
                 onPress={() => setConfigModalVisible(true)}
                 style={styles.secondaryButton}
-                className="flex-1 py-2.5 rounded-xl items-center mr-2"
+                className="flex-1 py-2.5 rounded-xl items-center justify-center flex-row mr-2"
               >
-                <Text className="text-xs font-bold text-[#FFB6C1]">Change Host IP ⚙️</Text>
+                <Text className="text-xs font-bold text-[#FFB6C1] mr-1.5">Change Host IP</Text>
+                <GalaxyIcon name="settings" size={13} color="#FFB6C1" />
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={onRefreshHealth}
                 style={styles.pingButton}
-                className="flex-1 py-2.5 rounded-xl items-center"
+                className="flex-1 py-2.5 rounded-xl items-center justify-center flex-row"
               >
-                <Text className="text-xs font-black text-black">Ping Backend 📡</Text>
+                <Text className="text-xs font-black text-black mr-1.5">Ping Backend</Text>
+                <GalaxyIcon name="radio" size={13} color="#000000" />
               </TouchableOpacity>
             </View>
           </View>
@@ -227,11 +240,14 @@ export const SettingsScreen = ({
             <TouchableOpacity
               onPress={handleConfirmLogout}
               style={styles.logoutButton}
-              className="py-3 rounded-2xl items-center"
+              className="py-3 rounded-2xl items-center justify-center flex-row"
               activeOpacity={0.8}
             >
+              <View className="mr-2">
+                <GalaxyIcon name="logout" size={14} color="#FFFFFF" />
+              </View>
               <Text className="text-xs font-black text-white uppercase tracking-wider">
-                🚪 Log Out of Command Deck
+                Log Out of Command Deck
               </Text>
             </TouchableOpacity>
           </View>
@@ -254,9 +270,14 @@ export const SettingsScreen = ({
           className="flex-1 justify-center items-center bg-black/85 px-6"
         >
           <View style={styles.configModalCard} className="rounded-3xl p-5 w-full max-w-sm">
-            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-              ✦ Backend Endpoint
-            </Text>
+            <View className="flex-row items-center">
+              <View className="mr-1.5">
+                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+              </View>
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                Backend Endpoint
+              </Text>
+            </View>
             <Text className="text-lg font-black text-white mt-0.5 mb-1">
               Configure Server IP
             </Text>
@@ -268,26 +289,35 @@ export const SettingsScreen = ({
             <View className="flex-row flex-wrap mb-3">
               <TouchableOpacity
                 onPress={() => setApiUrlInput("http://192.168.100.51:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493]"
+                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493] flex-row items-center"
               >
+                <View className="mr-1">
+                  <GalaxyIcon name="smartphone" size={11} color="#FF69B4" />
+                </View>
                 <Text className="text-[10px] font-bold text-[#FF69B4]">
-                  📱 Wi-Fi: 192.168.100.51
+                  Wi-Fi: 192.168.100.51
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
               >
+                <View className="mr-1">
+                  <GalaxyIcon name="cpu" size={11} color="#FFB6C1" />
+                </View>
                 <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  🤖 Emulator (10.0.2.2)
+                  Emulator (10.0.2.2)
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setApiUrlInput("http://localhost:5000/api")}
-                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
               >
+                <View className="mr-1">
+                  <GalaxyIcon name="monitor" size={11} color="#FFB6C1" />
+                </View>
                 <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  💻 Localhost
+                  Localhost
                 </Text>
               </TouchableOpacity>
             </View>

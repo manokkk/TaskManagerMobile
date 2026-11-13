@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Task } from "../types/task";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { GalaxyIcon } from "../components/GalaxyIcon";
 
 interface NotesScreenProps {
   notes: Task[];
@@ -64,9 +65,14 @@ export const NotesScreen = ({
         >
           <View className="flex-row items-center justify-between mb-1">
             <View>
-              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-                ✦ Memos & Unscheduled Logs
-              </Text>
+              <View className="flex-row items-center">
+                <View className="mr-1.5">
+                  <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+                </View>
+                <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                  Memos & Unscheduled Logs
+                </Text>
+              </View>
               <Text className="text-2xl font-black text-white mt-0.5">
                 Commander Notes
               </Text>
@@ -77,7 +83,9 @@ export const NotesScreen = ({
               className="px-3 py-1.5 rounded-full flex-row items-center"
               activeOpacity={0.8}
             >
-              <Text className="text-xs font-black text-black mr-1">+</Text>
+              <View className="mr-1">
+                <GalaxyIcon name="plus" size={13} color="#000000" strokeWidth={2.5} />
+              </View>
               <Text className="text-xs font-black text-black uppercase">Add Note</Text>
             </TouchableOpacity>
           </View>
@@ -98,7 +106,9 @@ export const NotesScreen = ({
             style={[styles.searchBox, { height: isSmallDevice ? 40 : 44 }]}
             className="rounded-2xl px-3.5 flex-row items-center"
           >
-            <Text className="text-[#FF1493] mr-2 text-xs">📝</Text>
+            <View className="mr-2">
+              <GalaxyIcon name="search" size={14} color="#FF1493" />
+            </View>
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -111,7 +121,7 @@ export const NotesScreen = ({
                 onPress={() => setSearchQuery("")}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Text className="text-[#FF69B4] font-bold text-xs">✕</Text>
+                <GalaxyIcon name="close" size={14} color="#FF69B4" />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -136,7 +146,9 @@ export const NotesScreen = ({
           }
           ListEmptyComponent={
             <View className="items-center justify-center py-16 px-6">
-              <Text className="text-4xl mb-3">📝</Text>
+              <View className="mb-3">
+                <GalaxyIcon name="note" size={38} color="#FF1493" />
+              </View>
               <Text className="text-base font-extrabold text-white text-center">
                 {searchQuery ? `No notes matching "${searchQuery}"` : "No Notes in Sector"}
               </Text>
@@ -149,8 +161,11 @@ export const NotesScreen = ({
                   style={styles.addNoteHeaderBtn}
                   className="px-5 py-2.5 rounded-2xl flex-row items-center"
                 >
+                  <View className="mr-1.5">
+                    <GalaxyIcon name="plus" size={14} color="#000000" strokeWidth={2.5} />
+                  </View>
                   <Text className="text-xs font-black text-black uppercase tracking-wider">
-                    + Create First Note
+                    Create First Note
                   </Text>
                 </TouchableOpacity>
               )}
@@ -177,22 +192,22 @@ export const NotesScreen = ({
                       ]}
                       className="w-5 h-5 rounded-md items-center justify-center mr-2.5 mt-0.5"
                     >
-                      {isDone && <Text className="text-black text-[10px] font-black">✓</Text>}
+                      {isDone && (
+                        <GalaxyIcon name="check" size={12} color="#000000" strokeWidth={2.5} />
+                      )}
                     </View>
 
                     <View className="flex-1">
                       <Text
-                        className={`text-sm font-bold ${
-                          isDone ? "text-[#FFB6C1]/50 line-through" : "text-white"
-                        }`}
+                        className={`text-sm font-bold ${isDone ? "text-[#FFB6C1]/50 line-through" : "text-white"
+                          }`}
                       >
                         {item.title}
                       </Text>
                       {item.description ? (
                         <Text
-                          className={`text-xs mt-1 ${
-                            isDone ? "text-[#FFB6C1]/40 line-through" : "text-[#FFB6C1]/80"
-                          }`}
+                          className={`text-xs mt-1 ${isDone ? "text-[#FFB6C1]/40 line-through" : "text-[#FFB6C1]/80"
+                            }`}
                         >
                           {item.description}
                         </Text>
@@ -207,7 +222,7 @@ export const NotesScreen = ({
                       className="w-7 h-7 rounded-lg bg-[#140710] border border-[#2E1122] items-center justify-center mr-1.5"
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
-                      <Text style={{ fontSize: 11 }}>✏️</Text>
+                      <GalaxyIcon name="edit" size={13} color="#FF69B4" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -215,24 +230,9 @@ export const NotesScreen = ({
                       className="w-7 h-7 rounded-lg bg-[#140710] border border-[#2E1122] items-center justify-center"
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
-                      <Text style={{ fontSize: 11 }}>🗑️</Text>
+                      <GalaxyIcon name="trash" size={13} color="#FF1493" />
                     </TouchableOpacity>
                   </View>
-                </View>
-
-                {/* Footer date */}
-                <View className="flex-row items-center justify-between mt-2.5 pt-2 border-t border-[#1F0B17]">
-                  <Text className="text-[9px] font-mono text-[#8A3B68]">
-                    {new Date(item.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                  <Text className="text-[9px] font-bold text-[#FF69B4]">
-                    {isDone ? "+5 EXP Earned" : "+5 EXP on complete"}
-                  </Text>
                 </View>
               </View>
             );

@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { GalaxyIcon } from "./GalaxyIcon";
 
 export type MainViewTab = "all" | "tasks" | "notes" | "settings";
 
@@ -45,7 +46,11 @@ export const BottomNavBar = ({
         activeOpacity={0.7}
       >
         <View style={isAllActive ? styles.activeIconBox : styles.inactiveIconBox}>
-          <Text style={styles.tabIcon}>🌌</Text>
+          <GalaxyIcon
+            name="grid"
+            size={18}
+            color={isAllActive ? "#FF1493" : "#FFB6C1"}
+          />
           {allCount > 0 && (
             <View
               style={isAllActive ? styles.activeBadge : styles.inactiveBadge}
@@ -75,7 +80,11 @@ export const BottomNavBar = ({
         activeOpacity={0.7}
       >
         <View style={isTasksActive ? styles.activeIconBox : styles.inactiveIconBox}>
-          <Text style={styles.tabIcon}>🚀</Text>
+          <GalaxyIcon
+            name="rocket"
+            size={18}
+            color={isTasksActive ? "#FF1493" : "#FFB6C1"}
+          />
           {tasksCount > 0 && (
             <View
               style={isTasksActive ? styles.activeBadge : styles.inactiveBadge}
@@ -107,7 +116,7 @@ export const BottomNavBar = ({
           accessibilityRole="button"
           accessibilityLabel="Create New Task or Note"
         >
-          <Text style={styles.fabPlusIcon}>+</Text>
+          <GalaxyIcon name="plus" size={24} color="#000000" strokeWidth={2.5} />
         </TouchableOpacity>
         <Text style={styles.fabLabel}>NEW</Text>
       </View>
@@ -119,7 +128,11 @@ export const BottomNavBar = ({
         activeOpacity={0.7}
       >
         <View style={isNotesActive ? styles.activeIconBox : styles.inactiveIconBox}>
-          <Text style={styles.tabIcon}>📝</Text>
+          <GalaxyIcon
+            name="note"
+            size={18}
+            color={isNotesActive ? "#FF1493" : "#FFB6C1"}
+          />
           {notesCount > 0 && (
             <View
               style={isNotesActive ? styles.activeBadge : styles.inactiveBadge}
@@ -149,7 +162,11 @@ export const BottomNavBar = ({
         activeOpacity={0.7}
       >
         <View style={isSettingsActive ? styles.activeIconBox : styles.inactiveIconBox}>
-          <Text style={styles.tabIcon}>⚙️</Text>
+          <GalaxyIcon
+            name="settings"
+            size={18}
+            color={isSettingsActive ? "#FF1493" : "#FFB6C1"}
+          />
         </View>
         <Text
           style={[

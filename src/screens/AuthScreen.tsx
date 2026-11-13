@@ -15,6 +15,7 @@ import { StatusBar } from "expo-status-bar";
 import { AuthUser } from "../types/task";
 import { galaxyApi } from "../services/api";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { GalaxyIcon } from "../components/GalaxyIcon";
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, token: string) => void;
@@ -148,7 +149,7 @@ export const AuthScreen = ({
             {/* Top Emblem & Brand Header */}
             <View className="items-center mb-6">
               <View style={styles.emblemCircle} className="mb-3 items-center justify-center">
-                <Text style={{ fontSize: isSmallDevice ? 32 : 38 }}>🌌</Text>
+                <GalaxyIcon name="galaxy" size={isSmallDevice ? 30 : 36} color="#FF1493" />
               </View>
 
               <Text
@@ -158,9 +159,13 @@ export const AuthScreen = ({
                 GALAXY QUEST
               </Text>
 
-              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4] mt-1">
-                ✦ Space-Grade Mission Command Deck ✦
-              </Text>
+              <View className="flex-row items-center mt-1">
+                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+                <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4] mx-1.5">
+                  Space-Grade Mission Command Deck
+                </Text>
+                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+              </View>
 
               {/* Supabase PostgreSQL Status Pill */}
               <TouchableOpacity
@@ -180,7 +185,7 @@ export const AuthScreen = ({
                     },
                   ]}
                 />
-                <Text className="text-[10px] font-mono text-white/90">
+                <Text className="text-[10px] font-mono text-white/90 mr-1.5">
                   Supabase:{" "}
                   <Text
                     className={
@@ -193,8 +198,8 @@ export const AuthScreen = ({
                       ? "Connected"
                       : "Server Offline"}
                   </Text>
-                  <Text className="text-[9px] text-[#FFB6C1]/70"> (Tap ⚙️)</Text>
                 </Text>
+                <GalaxyIcon name="settings" size={11} color="#FFB6C1" />
               </TouchableOpacity>
             </View>
 
@@ -244,8 +249,11 @@ export const AuthScreen = ({
               {/* 7-Day Session Reset Banner */}
               {sessionResetNotice && !errorMessage && !successMessage && (
                 <View style={styles.resetNoticeBox} className="p-3 rounded-xl mb-4 flex-row items-center">
+                  <View className="mr-2">
+                    <GalaxyIcon name="refresh" size={14} color="#FFB6C1" />
+                  </View>
                   <Text className="text-xs text-[#FFB6C1] flex-1 font-semibold">
-                    🔄 {sessionResetNotice}
+                    {sessionResetNotice}
                   </Text>
                 </View>
               )}
@@ -253,8 +261,11 @@ export const AuthScreen = ({
               {/* Error Banner */}
               {errorMessage && (
                 <View style={styles.errorBox} className="p-3 rounded-xl mb-4 flex-row items-center">
+                  <View className="mr-2">
+                    <GalaxyIcon name="alert" size={14} color="#FF69B4" />
+                  </View>
                   <Text className="text-xs text-[#FF69B4] flex-1 font-medium">
-                    ⚠️ {errorMessage}
+                    {errorMessage}
                   </Text>
                 </View>
               )}
@@ -262,8 +273,11 @@ export const AuthScreen = ({
               {/* Success Banner */}
               {successMessage && (
                 <View style={styles.successBox} className="p-3 rounded-xl mb-4 flex-row items-center">
+                  <View className="mr-2">
+                    <GalaxyIcon name="check-circle" size={14} color="#10B981" />
+                  </View>
                   <Text className="text-xs text-[#10B981] flex-1 font-bold">
-                    ✓ {successMessage}
+                    {successMessage}
                   </Text>
                 </View>
               )}
@@ -271,9 +285,14 @@ export const AuthScreen = ({
               {/* Commander Call-Sign (Sign Up Only) */}
               {isSignUp && (
                 <View className="mb-3.5">
-                  <Text className="text-[10px] uppercase font-bold tracking-widest text-[#FFB6C1] mb-1.5">
-                    🎖️ Commander Call-Sign
-                  </Text>
+                  <View className="flex-row items-center mb-1.5">
+                    <View className="mr-1.5">
+                      <GalaxyIcon name="shield" size={12} color="#FFB6C1" />
+                    </View>
+                    <Text className="text-[10px] uppercase font-bold tracking-widest text-[#FFB6C1]">
+                      Commander Call-Sign
+                    </Text>
+                  </View>
                   <TextInput
                     value={username}
                     onChangeText={setUsername}
@@ -288,9 +307,14 @@ export const AuthScreen = ({
 
               {/* Cosmic ID (Email) */}
               <View className="mb-3.5">
-                <Text className="text-[10px] uppercase font-bold tracking-widest text-[#FFB6C1] mb-1.5">
-                  ✉️ Cosmic ID (Email)
-                </Text>
+                <View className="flex-row items-center mb-1.5">
+                  <View className="mr-1.5">
+                    <GalaxyIcon name="mail" size={12} color="#FFB6C1" />
+                  </View>
+                  <Text className="text-[10px] uppercase font-bold tracking-widest text-[#FFB6C1]">
+                    Cosmic ID (Email)
+                  </Text>
+                </View>
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
@@ -306,9 +330,14 @@ export const AuthScreen = ({
               {/* Security Cipher (Password) */}
               <View className="mb-5">
                 <View className="flex-row items-center justify-between mb-1.5">
-                  <Text className="text-[10px] uppercase font-bold tracking-widest text-[#FFB6C1]">
-                    🔐 Security Cipher (Password)
-                  </Text>
+                  <View className="flex-row items-center">
+                    <View className="mr-1.5">
+                      <GalaxyIcon name="lock" size={12} color="#FFB6C1" />
+                    </View>
+                    <Text className="text-[10px] uppercase font-bold tracking-widest text-[#FFB6C1]">
+                      Security Cipher (Password)
+                    </Text>
+                  </View>
                   <TouchableOpacity
                     onPress={() => setShowPassword(!showPassword)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -346,11 +375,18 @@ export const AuthScreen = ({
                     </Text>
                   </View>
                 ) : (
-                  <Text className="text-xs font-black text-black uppercase tracking-wider">
-                    {isSignUp
-                      ? "Commission Commander in Supabase 🚀"
-                      : "Launch Command Deck 🔐"}
-                  </Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-xs font-black text-black uppercase tracking-wider mr-1.5">
+                      {isSignUp
+                        ? "Commission Commander in Supabase"
+                        : "Launch Command Deck"}
+                    </Text>
+                    <GalaxyIcon
+                      name={isSignUp ? "rocket" : "lock"}
+                      size={14}
+                      color="#000000"
+                    />
+                  </View>
                 )}
               </TouchableOpacity>
 
@@ -389,9 +425,14 @@ export const AuthScreen = ({
           className="flex-1 justify-center items-center bg-black/85 px-6"
         >
           <View style={styles.configCard} className="rounded-3xl p-5 w-full max-w-sm">
-            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-              ✦ Backend Endpoint Link
-            </Text>
+            <View className="flex-row items-center">
+              <View className="mr-1.5">
+                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
+              </View>
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
+                Backend Endpoint Link
+              </Text>
+            </View>
             <Text className="text-lg font-black text-white mt-0.5 mb-1">
               Server & Supabase Bridge
             </Text>
@@ -403,26 +444,35 @@ export const AuthScreen = ({
             <View className="flex-row flex-wrap mb-3">
               <TouchableOpacity
                 onPress={() => setApiUrlInput("http://192.168.100.51:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493]"
+                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493] flex-row items-center"
               >
+                <View className="mr-1">
+                  <GalaxyIcon name="smartphone" size={11} color="#FF69B4" />
+                </View>
                 <Text className="text-[10px] font-bold text-[#FF69B4]">
-                  📱 Wi-Fi: 192.168.100.51
+                  Wi-Fi: 192.168.100.51
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
               >
+                <View className="mr-1">
+                  <GalaxyIcon name="cpu" size={11} color="#FFB6C1" />
+                </View>
                 <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  🤖 Emulator (10.0.2.2)
+                  Emulator (10.0.2.2)
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setApiUrlInput("http://localhost:5000/api")}
-                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122]"
+                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
               >
+                <View className="mr-1">
+                  <GalaxyIcon name="monitor" size={11} color="#FFB6C1" />
+                </View>
                 <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  💻 Localhost
+                  Localhost
                 </Text>
               </TouchableOpacity>
             </View>
