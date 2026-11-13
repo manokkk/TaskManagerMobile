@@ -13,13 +13,16 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  AppState,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GalaxyStateResponse, Task, TaskInput, AuthUser } from "./src/types/task";
 import { notificationService } from "./src/services/notifications";
 import { galaxyApi } from "./src/services/api";
+import { sessionStorage } from "./src/services/sessionStorage";
 import { GalaxyHeader } from "./src/components/GalaxyHeader";
+import { SessionLoadingScreen } from "./src/components/SessionLoadingScreen";
 import {
   CategoryFilterValue,
   StatusFilterValue,
@@ -66,7 +69,15 @@ const EMPTY_SERVER_STATE: GalaxyStateResponse = {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [sessionCheckStatus, setSessionCheckStatus] = useState(
+    "Checking 7-day login session..."
+  );
+  const [sessionResetNotice, setSessionResetNotice] = useState<string | null>(
+    null
+  );
   const [backendOnline, setBackendOnline] = useState(false);
   const [databaseStatus, setDatabaseStatus] = useState<string>("checking...");
 
@@ -77,35 +88,146 @@ export default function App() {
       setDatabaseStatus(
         health.database || (health.online ? "connected" : "unreachable")
       );
+      return health.online;
     } catch {
       setBackendOnline(false);
       setDatabaseStatus("unreachable");
+      return false;
     }
   }, []);
 
+  const resetExpiredSession = useCallback(async () => {
+    await sessionStorage.clearSession();
+    setCurrentUser(null);
+    setSessionExpiresAt(null);
+    setIsGuest(false);
+    setSessionResetNotice(
+      "Your 7-day login session has expired and been reset. Please log in again."
+    );
+  }, []);
+
+  // Verify the 7-day login session when the user opens the app
   useEffect(() => {
-    checkHealth();
-  }, [checkHealth]);
+    let mounted = true;
+
+    const bootstrapSession = async () => {
+      setIsCheckingSession(true);
+      setSessionCheckStatus("Checking 7-day login session...");
+
+      const minDisplayDelay = new Promise((resolve) =>
+        setTimeout(resolve, 900)
+      );
+
+      const [online, storedResult] = await Promise.all([
+        checkHealth(),
+        sessionStorage.loadAndValidateSession(),
+        minDisplayDelay,
+      ]);
+
+      if (!mounted) return;
+
+      if (storedResult.status === "valid") {
+        const { session } = storedResult;
+        setSessionCheckStatus("7-day session active — restoring Command Deck...");
+
+        if (online) {
+          try {
+            const { user: freshUser } = await galaxyApi.getMe(session.token);
+            if (!mounted) return;
+            await sessionStorage.updateSessionUser(freshUser);
+            setCurrentUser(freshUser);
+            setSessionExpiresAt(session.expiresAt);
+          } catch (err: any) {
+            if (!mounted) return;
+            if (err?.status === 401 || err?.status === 404) {
+              await resetExpiredSession();
+            } else {
+              // Network/transient failure: keep valid local 7-day session active
+              setCurrentUser(session.user);
+              setSessionExpiresAt(session.expiresAt);
+            }
+          }
+        } else {
+          setCurrentUser(session.user);
+          setSessionExpiresAt(session.expiresAt);
+        }
+      } else if (storedResult.status === "expired") {
+        await resetExpiredSession();
+      } else {
+        setCurrentUser(null);
+        setSessionExpiresAt(null);
+      }
+
+      if (mounted) {
+        setIsCheckingSession(false);
+      }
+    };
+
+    bootstrapSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [checkHealth, resetExpiredSession]);
+
+  // Automatically reset session and return straight to Log In page once 7 days elapse
+  useEffect(() => {
+    if (!currentUser || !sessionExpiresAt) return;
+
+    const checkIfExpired = () => {
+      if (Date.now() >= sessionExpiresAt) {
+        resetExpiredSession();
+      }
+    };
+
+    checkIfExpired();
+
+    const intervalId = setInterval(checkIfExpired, 30000);
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextState) => {
+        if (nextState === "active") {
+          checkIfExpired();
+        }
+      }
+    );
+
+    return () => {
+      clearInterval(intervalId);
+      appStateSubscription.remove();
+    };
+  }, [currentUser, sessionExpiresAt, resetExpiredSession]);
 
   return (
     <SafeAreaProvider>
-      {!currentUser && !isGuest ? (
+      {isCheckingSession ? (
+        <SessionLoadingScreen statusMessage={sessionCheckStatus} />
+      ) : !currentUser && !isGuest ? (
         <AuthScreen
           backendOnline={backendOnline}
           databaseStatus={databaseStatus}
           onRefreshHealth={checkHealth}
-          onLoginSuccess={(user) => {
+          sessionResetNotice={sessionResetNotice}
+          onClearSessionNotice={() => setSessionResetNotice(null)}
+          onLoginSuccess={async (user, token) => {
+            const saved = await sessionStorage.saveSession(user, token);
+            setSessionResetNotice(null);
+            setSessionExpiresAt(saved.expiresAt);
             setCurrentUser(user);
           }}
           onContinueAsGuest={() => {
+            setSessionResetNotice(null);
             setIsGuest(true);
           }}
         />
       ) : (
         <GalaxyQuestMain
           currentUser={currentUser}
-          onLogout={() => {
+          sessionExpiresAt={sessionExpiresAt}
+          onLogout={async () => {
+            await sessionStorage.clearSession();
             setCurrentUser(null);
+            setSessionExpiresAt(null);
             setIsGuest(false);
           }}
         />
@@ -116,10 +238,15 @@ export default function App() {
 
 interface GalaxyQuestMainProps {
   currentUser: AuthUser | null;
+  sessionExpiresAt: number | null;
   onLogout: () => void;
 }
 
-function GalaxyQuestMain({ currentUser, onLogout }: GalaxyQuestMainProps) {
+function GalaxyQuestMain({
+  currentUser,
+  sessionExpiresAt,
+  onLogout,
+}: GalaxyQuestMainProps) {
   const {
     isSmallDevice,
     isTablet,
@@ -387,6 +514,7 @@ function GalaxyQuestMain({ currentUser, onLogout }: GalaxyQuestMainProps) {
       {currentTab === "settings" ? (
         <SettingsScreen
           currentUser={currentUser}
+          sessionExpiresAt={sessionExpiresAt}
           progress={serverState.progress}
           backendOnline={backendOnline}
           databaseStatus={databaseStatus}

@@ -13,10 +13,12 @@ import {
 } from "react-native";
 import { AuthUser, UserProgress } from "../types/task";
 import { galaxyApi } from "../services/api";
+import { sessionStorage } from "../services/sessionStorage";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 
 interface SettingsScreenProps {
   currentUser: AuthUser | null;
+  sessionExpiresAt?: number | null;
   progress: UserProgress;
   backendOnline: boolean;
   databaseStatus: string;
@@ -26,6 +28,7 @@ interface SettingsScreenProps {
 
 export const SettingsScreen = ({
   currentUser,
+  sessionExpiresAt,
   progress,
   backendOnline,
   databaseStatus,
@@ -37,6 +40,9 @@ export const SettingsScreen = ({
 
   const [configModalVisible, setConfigModalVisible] = useState(false);
   const [apiUrlInput, setApiUrlInput] = useState(galaxyApi.getBaseUrl());
+  const sessionInfo = sessionStorage.getRemainingTimeInfo(
+    sessionExpiresAt ?? null
+  );
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -116,6 +122,15 @@ export const SettingsScreen = ({
                 </Text>
               </View>
             </View>
+
+            {currentUser && (
+              <View className="mt-2.5 pt-2.5 border-t border-[#2E1122] flex-row items-center justify-between">
+                <Text className="text-[10px] text-[#FFB6C1]/70">7-Day Session</Text>
+                <Text className="text-[11px] font-mono font-bold text-[#10B981]">
+                  ⏳ {sessionInfo.label}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Supabase Database Telemetry */}

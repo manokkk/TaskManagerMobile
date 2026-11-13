@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,8 @@ interface AuthScreenProps {
   backendOnline: boolean;
   databaseStatus: string;
   onRefreshHealth: () => void;
+  sessionResetNotice?: string | null;
+  onClearSessionNotice?: () => void;
 }
 
 export const AuthScreen = ({
@@ -30,6 +32,8 @@ export const AuthScreen = ({
   backendOnline,
   databaseStatus,
   onRefreshHealth,
+  sessionResetNotice,
+  onClearSessionNotice,
 }: AuthScreenProps) => {
   const { totalTopPadding, horizontalMargin, isSmallDevice, isTablet, maxContentWidth } =
     useResponsiveLayout();
@@ -43,6 +47,13 @@ export const AuthScreen = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Whenever a 7-day session reset occurs, ensure the user is straight on the Log In tab
+  useEffect(() => {
+    if (sessionResetNotice) {
+      setIsSignUp(false);
+    }
+  }, [sessionResetNotice]);
+
   // Server endpoint quick configuration modal
   const [configModalVisible, setConfigModalVisible] = useState(false);
   const [apiUrlInput, setApiUrlInput] = useState(galaxyApi.getBaseUrl());
@@ -50,6 +61,7 @@ export const AuthScreen = ({
   const handleAuthSubmit = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
+    onClearSessionNotice?.();
 
     if (!email.trim() || !password.trim()) {
       setErrorMessage("Please enter both Cosmic ID (Email) and Security Cipher.");
@@ -229,6 +241,15 @@ export const AuthScreen = ({
                 </TouchableOpacity>
               </View>
 
+              {/* 7-Day Session Reset Banner */}
+              {sessionResetNotice && !errorMessage && !successMessage && (
+                <View style={styles.resetNoticeBox} className="p-3 rounded-xl mb-4 flex-row items-center">
+                  <Text className="text-xs text-[#FFB6C1] flex-1 font-semibold">
+                    🔄 {sessionResetNotice}
+                  </Text>
+                </View>
+              )}
+
               {/* Error Banner */}
               {errorMessage && (
                 <View style={styles.errorBox} className="p-3 rounded-xl mb-4 flex-row items-center">
@@ -335,8 +356,8 @@ export const AuthScreen = ({
 
               <Text className="text-center text-[10px] text-[#FFB6C1]/60">
                 {isSignUp
-                  ? "Saves encrypted record to Supabase PostgreSQL User table."
-                  : "Authenticates cryptographic credentials on the backend."}
+                  ? "Saves encrypted record to Supabase & starts a 7-day login session."
+                  : "Keeps your login session active for 7 days before resetting."}
               </Text>
             </View>
 
@@ -507,6 +528,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#2E0A1A",
     borderWidth: 1,
     borderColor: "#FF1493",
+  },
+  resetNoticeBox: {
+    backgroundColor: "#1F0B17",
+    borderWidth: 1,
+    borderColor: "#FF69B4",
   },
   successBox: {
     backgroundColor: "#062816",

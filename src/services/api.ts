@@ -120,14 +120,26 @@ export const galaxyApi = {
   },
 
   async getMe(token: string): Promise<{ user: AuthUser }> {
-    const res = await fetch(`${currentBaseUrl}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error || "Session invalid");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    try {
+      const res = await fetch(`${currentBaseUrl}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const error: Error & { status?: number } = new Error(
+          data.error || "Session invalid"
+        );
+        error.status = res.status;
+        throw error;
+      }
+      return data;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return data;
   },
 
   async fetchState(
