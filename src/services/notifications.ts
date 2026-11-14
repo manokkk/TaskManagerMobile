@@ -80,7 +80,7 @@ export const notificationService = {
   async scheduleTaskNotification(
     payload: ScheduleTaskNotificationPayload
   ): Promise<string | null> {
-    if (Platform.OS === "web") {
+    if (Platform.OS === "web" || payload.category === "Note") {
       return null;
     }
 

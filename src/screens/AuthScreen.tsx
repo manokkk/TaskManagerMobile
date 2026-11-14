@@ -9,13 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { AuthUser } from "../types/task";
 import { galaxyApi } from "../services/api";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { GalaxyIcon } from "../components/GalaxyIcon";
+import { DevBackendConfigModal } from "../components/DevBackendConfigModal";
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AuthUser, token: string) => void;
@@ -55,9 +55,8 @@ export const AuthScreen = ({
     }
   }, [sessionResetNotice]);
 
-  // Server endpoint quick configuration modal
+  // Server endpoint quick configuration modal (development builds only)
   const [configModalVisible, setConfigModalVisible] = useState(false);
-  const [apiUrlInput, setApiUrlInput] = useState(galaxyApi.getBaseUrl());
 
   const handleAuthSubmit = async () => {
     setErrorMessage(null);
@@ -105,14 +104,6 @@ export const AuthScreen = ({
       setErrorMessage(err?.message || "Authentication transmission failed.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSaveApiUrl = () => {
-    if (apiUrlInput.trim()) {
-      galaxyApi.setBaseUrl(apiUrlInput.trim());
-      setConfigModalVisible(false);
-      onRefreshHealth();
     }
   };
 
@@ -169,7 +160,8 @@ export const AuthScreen = ({
 
               {/* Supabase PostgreSQL Status Pill */}
               <TouchableOpacity
-                onPress={() => setConfigModalVisible(true)}
+                onPress={() => __DEV__ && setConfigModalVisible(true)}
+                disabled={!__DEV__}
                 activeOpacity={0.8}
                 style={styles.statusPill}
                 className="mt-3 px-3.5 py-1.5 rounded-full flex-row items-center"
@@ -185,7 +177,7 @@ export const AuthScreen = ({
                     },
                   ]}
                 />
-                <Text className="text-[10px] font-mono text-white/90 mr-1.5">
+                <Text className={`text-[10px] font-mono text-white/90 ${__DEV__ ? "mr-1.5" : ""}`}>
                   Supabase:{" "}
                   <Text
                     className={
@@ -199,7 +191,9 @@ export const AuthScreen = ({
                       : "Server Offline"}
                   </Text>
                 </Text>
-                <GalaxyIcon name="settings" size={11} color="#FFB6C1" />
+                {__DEV__ ? (
+                  <GalaxyIcon name="settings" size={11} color="#FFB6C1" />
+                ) : null}
               </TouchableOpacity>
             </View>
 
@@ -413,97 +407,16 @@ export const AuthScreen = ({
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Backend API Configuration Modal */}
-      <Modal
+      {/* Dev Server Endpoint Quick Config Modal */}
+      <DevBackendConfigModal
         visible={configModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setConfigModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          className="flex-1 justify-center items-center bg-black/85 px-6"
-        >
-          <View style={styles.configCard} className="rounded-3xl p-5 w-full max-w-sm">
-            <View className="flex-row items-center">
-              <View className="mr-1.5">
-                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
-              </View>
-              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-                Backend Endpoint Link
-              </Text>
-            </View>
-            <Text className="text-lg font-black text-white mt-0.5 mb-1">
-              Server & Supabase Bridge
-            </Text>
-            <Text className="text-xs text-[#FFB6C1]/80 mb-3">
-              Configure your backend IP to bridge between your mobile device and Supabase.
-            </Text>
-
-            {/* Quick Presets */}
-            <View className="flex-row flex-wrap mb-3">
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://192.168.100.51:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493] flex-row items-center"
-              >
-                <View className="mr-1">
-                  <GalaxyIcon name="smartphone" size={11} color="#FF69B4" />
-                </View>
-                <Text className="text-[10px] font-bold text-[#FF69B4]">
-                  Wi-Fi: 192.168.100.51
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
-              >
-                <View className="mr-1">
-                  <GalaxyIcon name="cpu" size={11} color="#FFB6C1" />
-                </View>
-                <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  Emulator (10.0.2.2)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://localhost:5000/api")}
-                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
-              >
-                <View className="mr-1">
-                  <GalaxyIcon name="monitor" size={11} color="#FFB6C1" />
-                </View>
-                <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  Localhost
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              value={apiUrlInput}
-              onChangeText={setApiUrlInput}
-              placeholder="http://192.168.100.51:5000/api"
-              placeholderTextColor="#8A3B68"
-              autoCapitalize="none"
-              style={styles.inputBox}
-              className="rounded-xl px-3.5 py-2.5 text-xs text-white mb-4 font-mono"
-            />
-
-            <View className="flex-row">
-              <TouchableOpacity
-                onPress={() => setConfigModalVisible(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#140710] border border-[#2E1122] items-center mr-2"
-              >
-                <Text className="text-xs font-bold text-[#FFB6C1]">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSaveApiUrl}
-                className="flex-1 py-2.5 rounded-xl bg-[#FF1493] items-center"
-              >
-                <Text className="text-xs font-black text-black">Save & Ping</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        eyebrow="Backend Endpoint Link"
+        title="Server & Supabase Bridge"
+        subtitle="Configure your local backend IP to bridge between your mobile device and Supabase."
+        submitLabel="Save & Ping"
+        onClose={() => setConfigModalVisible(false)}
+        onSaved={onRefreshHealth}
+      />
     </View>
   );
 };

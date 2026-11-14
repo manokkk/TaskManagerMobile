@@ -8,11 +8,8 @@ import {
   TextInput,
   RefreshControl,
   ScrollView,
-  Modal,
   Alert,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   AppState,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -20,8 +17,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GalaxyStateResponse, Task, TaskInput, AuthUser } from "./src/types/task";
 import { notificationService } from "./src/services/notifications";
 import { galaxyApi } from "./src/services/api";
+import { localGuestStore } from "./src/services/localGuestStore";
 import { sessionStorage } from "./src/services/sessionStorage";
 import { GalaxyHeader } from "./src/components/GalaxyHeader";
+import { DevBackendConfigModal } from "./src/components/DevBackendConfigModal";
 import { SessionLoadingScreen } from "./src/components/SessionLoadingScreen";
 import {
   CategoryFilterValue,
@@ -29,6 +28,7 @@ import {
 } from "./src/components/TaskFilter";
 import { TaskCard } from "./src/components/TaskCard";
 import { CreateTaskModal } from "./src/components/CreateTaskModal";
+import { NoteEditorModal } from "./src/components/NoteEditorModal";
 import { RankProgressionModal } from "./src/components/RankProgressionModal";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
@@ -82,9 +82,9 @@ export default function App() {
   const [backendOnline, setBackendOnline] = useState(false);
   const [databaseStatus, setDatabaseStatus] = useState<string>("checking...");
 
-  const checkHealth = useCallback(async () => {
+  const checkHealth = useCallback(async (timeoutMs?: number) => {
     try {
-      const health = await galaxyApi.checkHealth();
+      const health = await galaxyApi.checkHealth(timeoutMs);
       setBackendOnline(health.online);
       setDatabaseStatus(
         health.database || (health.online ? "connected" : "unreachable")
@@ -98,6 +98,7 @@ export default function App() {
   }, []);
 
   const resetExpiredSession = useCallback(async () => {
+    galaxyApi.setAuthToken(null);
     await sessionStorage.clearSession();
     setCurrentUser(null);
     setSessionExpiresAt(null);
@@ -120,16 +121,22 @@ export default function App() {
       );
 
       const [online, storedResult] = await Promise.all([
-        checkHealth(),
+        checkHealth(4500),
         sessionStorage.loadAndValidateSession(),
         minDisplayDelay,
       ]);
 
       if (!mounted) return;
 
+      if (!online) {
+        // Wake up cold-started production backend in the background without blocking splash
+        void checkHealth();
+      }
+
       if (storedResult.status === "valid") {
         const { session } = storedResult;
         setSessionCheckStatus("7-day session active — restoring Command Deck...");
+        galaxyApi.setAuthToken(session.token);
 
         if (online) {
           try {
@@ -155,6 +162,7 @@ export default function App() {
       } else if (storedResult.status === "expired") {
         await resetExpiredSession();
       } else {
+        galaxyApi.setAuthToken(null);
         setCurrentUser(null);
         setSessionExpiresAt(null);
       }
@@ -211,12 +219,14 @@ export default function App() {
           sessionResetNotice={sessionResetNotice}
           onClearSessionNotice={() => setSessionResetNotice(null)}
           onLoginSuccess={async (user, token) => {
+            galaxyApi.setAuthToken(token);
             const saved = await sessionStorage.saveSession(user, token);
             setSessionResetNotice(null);
             setSessionExpiresAt(saved.expiresAt);
             setCurrentUser(user);
           }}
           onContinueAsGuest={() => {
+            galaxyApi.setAuthToken(null);
             setSessionResetNotice(null);
             setIsGuest(true);
           }}
@@ -224,8 +234,11 @@ export default function App() {
       ) : (
         <GalaxyQuestMain
           currentUser={currentUser}
+          isGuest={isGuest}
           sessionExpiresAt={sessionExpiresAt}
+          onSessionExpired={resetExpiredSession}
           onLogout={async () => {
+            galaxyApi.setAuthToken(null);
             await sessionStorage.clearSession();
             setCurrentUser(null);
             setSessionExpiresAt(null);
@@ -239,13 +252,17 @@ export default function App() {
 
 interface GalaxyQuestMainProps {
   currentUser: AuthUser | null;
+  isGuest: boolean;
   sessionExpiresAt: number | null;
+  onSessionExpired: () => Promise<void>;
   onLogout: () => void;
 }
 
 function GalaxyQuestMain({
   currentUser,
+  isGuest,
   sessionExpiresAt,
+  onSessionExpired,
   onLogout,
 }: GalaxyQuestMainProps) {
   const {
@@ -273,9 +290,9 @@ function GalaxyQuestMain({
   const [searchQuery, setSearchQuery] = useState("");
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [activeNote, setActiveNote] = useState<Task | null>(null);
   const [rankModalVisible, setRankModalVisible] = useState(false);
   const [apiConfigVisible, setApiConfigVisible] = useState(false);
-  const [apiUrlInput, setApiUrlInput] = useState(galaxyApi.getBaseUrl());
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [processingIds, setProcessingIds] = useState<Record<string, boolean>>(
@@ -309,9 +326,19 @@ function GalaxyQuestMain({
     [currentTab, selectedCategory, selectedStatus, searchQuery]
   );
 
+  const dataStore = isGuest ? localGuestStore : galaxyApi;
+
   const syncWithBackend = useCallback(async () => {
     setLoading(true);
     try {
+      if (isGuest) {
+        const freshState = await localGuestStore.fetchState(currentFilter());
+        setBackendOnline(true);
+        setDatabaseStatus("local-guest");
+        setServerState(freshState);
+        return;
+      }
+
       const health = await galaxyApi.checkHealth();
       setBackendOnline(health.online);
       setDatabaseStatus(health.database || (health.online ? "connected" : "unreachable"));
@@ -319,13 +346,17 @@ function GalaxyQuestMain({
         const freshState = await galaxyApi.fetchState(currentFilter());
         setServerState(freshState);
       }
-    } catch {
+    } catch (err: any) {
+      if (!isGuest && err?.status === 401) {
+        await onSessionExpired();
+        return;
+      }
       setBackendOnline(false);
       setDatabaseStatus("unreachable");
     } finally {
       setLoading(false);
     }
-  }, [currentFilter]);
+  }, [currentFilter, isGuest, onSessionExpired]);
 
   // Initialize OS push permissions on mount
   useEffect(() => {
@@ -351,11 +382,11 @@ function GalaxyQuestMain({
             (t) => t.id === existingTaskId
           );
 
-          // 1. Update task on the authoritative backend
+          // 1. Update task on the active store (authenticated backend or local guest store)
           const { task: updatedTask, state: nextState } =
-            await galaxyApi.updateTask(existingTaskId, input, currentFilter());
+            await dataStore.updateTask(existingTaskId, input, currentFilter());
 
-          // 2. Reschedule local OS push notification using backend-returned task data
+          // 2. Reschedule local OS push notification using returned task data
           const newNotificationId =
             await notificationService.rescheduleTaskNotification(
               currentTask?.notificationId,
@@ -371,7 +402,7 @@ function GalaxyQuestMain({
             );
 
           if (newNotificationId !== updatedTask.notificationId) {
-            const synced = await galaxyApi.syncNotificationId(
+            const synced = await dataStore.syncNotificationId(
               updatedTask.id,
               newNotificationId,
               currentFilter()
@@ -381,11 +412,11 @@ function GalaxyQuestMain({
             setServerState(nextState);
           }
         } else {
-          // 1. Create task on the authoritative backend
+          // 1. Create task on the active store (authenticated backend or local guest store)
           const { task: createdTask, state: nextState } =
-            await galaxyApi.createTask(input, currentFilter());
+            await dataStore.createTask(input, currentFilter());
 
-          // 2. Schedule local OS push notification using backend-assigned ID & EXP reward
+          // 2. Schedule local OS push notification using assigned ID & EXP reward
           const notificationId =
             await notificationService.scheduleTaskNotification({
               id: createdTask.id,
@@ -397,7 +428,7 @@ function GalaxyQuestMain({
             });
 
           if (notificationId) {
-            const synced = await galaxyApi.syncNotificationId(
+            const synced = await dataStore.syncNotificationId(
               createdTask.id,
               notificationId,
               currentFilter()
@@ -408,15 +439,19 @@ function GalaxyQuestMain({
           }
         }
         setBackendOnline(true);
-      } catch (err: unknown) {
+      } catch (err: any) {
+        if (!isGuest && err?.status === 401) {
+          await onSessionExpired();
+          return;
+        }
         const message =
           err instanceof Error
             ? err.message
-            : "Could not reach authoritative backend.";
-        Alert.alert("Backend Error", message);
+            : "Could not save mission.";
+        Alert.alert(isGuest ? "Storage Error" : "Backend Error", message);
       }
     },
-    [serverState.tasks, currentFilter]
+    [serverState.tasks, currentFilter, dataStore, isGuest, onSessionExpired]
   );
 
   const handleToggleStatus = useCallback(
@@ -429,11 +464,11 @@ function GalaxyQuestMain({
       setProcessingIds((prev) => ({ ...prev, [task.id]: true }));
 
       try {
-        // 1. Execute status toggle & EXP/Level math exclusively on the backend
+        // 1. Execute status toggle & EXP/Level math on the active store
         const { task: toggledTask, state: nextState } =
-          await galaxyApi.toggleTaskStatus(task.id, currentFilter());
+          await dataStore.toggleTaskStatus(task.id, currentFilter());
 
-        // 2. Cancel or reschedule local OS push notification based on backend status
+        // 2. Cancel or reschedule local OS push notification based on status
         const updatedNotificationId =
           await notificationService.rescheduleTaskNotification(
             task.notificationId,
@@ -449,22 +484,32 @@ function GalaxyQuestMain({
           );
 
         if (updatedNotificationId !== toggledTask.notificationId) {
-          const synced = await galaxyApi.syncNotificationId(
+          const synced = await dataStore.syncNotificationId(
             toggledTask.id,
             updatedNotificationId,
             currentFilter()
           );
           setServerState(synced.state);
+          setActiveNote((prev) =>
+            prev && prev.id === synced.task.id ? synced.task : prev
+          );
         } else {
           setServerState(nextState);
+          setActiveNote((prev) =>
+            prev && prev.id === toggledTask.id ? toggledTask : prev
+          );
         }
         setBackendOnline(true);
-      } catch (err: unknown) {
+      } catch (err: any) {
+        if (!isGuest && err?.status === 401) {
+          await onSessionExpired();
+          return;
+        }
         const message =
           err instanceof Error
             ? err.message
-            : "Failed to toggle mission on backend.";
-        Alert.alert("Backend Error", message);
+            : "Failed to toggle mission status.";
+        Alert.alert(isGuest ? "Storage Error" : "Backend Error", message);
       } finally {
         activeToggleLocksRef.current.delete(task.id);
         setProcessingIds((prev) => {
@@ -474,13 +519,13 @@ function GalaxyQuestMain({
         });
       }
     },
-    [currentFilter]
+    [currentFilter, dataStore, isGuest, onSessionExpired]
   );
 
   const handleDeleteTask = useCallback(
     async (id: string) => {
       try {
-        const { deletedTask, state: nextState } = await galaxyApi.deleteTask(
+        const { deletedTask, state: nextState } = await dataStore.deleteTask(
           id,
           currentFilter()
         );
@@ -490,22 +535,50 @@ function GalaxyQuestMain({
           );
         }
         setServerState(nextState);
-      } catch (err: unknown) {
+      } catch (err: any) {
+        if (!isGuest && err?.status === 401) {
+          await onSessionExpired();
+          return;
+        }
         const message =
           err instanceof Error
             ? err.message
-            : "Failed to delete mission on backend.";
-        Alert.alert("Backend Error", message);
+            : "Failed to delete mission.";
+        Alert.alert(isGuest ? "Storage Error" : "Backend Error", message);
       }
     },
-    [currentFilter]
+    [currentFilter, dataStore, isGuest, onSessionExpired]
   );
 
-  const handleSaveApiUrl = () => {
-    galaxyApi.setBaseUrl(apiUrlInput);
-    setApiConfigVisible(false);
-    syncWithBackend();
-  };
+  const handleSaveNoteContent = useCallback(
+    async (noteId: string, updates: { title: string; description: string }) => {
+      try {
+        const { task: updatedTask, state: nextState } = await dataStore.updateTask(
+          noteId,
+          {
+            title: updates.title,
+            description: updates.description,
+          },
+          currentFilter()
+        );
+        setServerState(nextState);
+        setActiveNote((prev) =>
+          prev && prev.id === updatedTask.id ? updatedTask : prev
+        );
+        setBackendOnline(true);
+      } catch (err: any) {
+        if (!isGuest && err?.status === 401) {
+          await onSessionExpired();
+        }
+        throw err;
+      }
+    },
+    [currentFilter, dataStore, isGuest, onSessionExpired]
+  );
+
+  const resolvedActiveNote = activeNote
+    ? serverState.tasks.find((t) => t.id === activeNote.id) ?? activeNote
+    : null;
 
   return (
     <View className="flex-1 bg-black">
@@ -515,6 +588,7 @@ function GalaxyQuestMain({
       {currentTab === "settings" ? (
         <SettingsScreen
           currentUser={currentUser}
+          isGuest={isGuest}
           sessionExpiresAt={sessionExpiresAt}
           progress={serverState.progress}
           backendOnline={backendOnline}
@@ -527,15 +601,8 @@ function GalaxyQuestMain({
           notes={serverState.tasks.filter((t) => t.category === "Note")}
           loading={loading}
           onRefresh={syncWithBackend}
-          onToggleStatus={(id) => {
-            const noteTask = serverState.tasks.find((t) => t.id === id);
-            if (noteTask) {
-              handleToggleStatus(noteTask);
-            }
-          }}
-          onEditNote={(note) => {
-            setEditingTask(note);
-            setModalVisible(true);
+          onOpenNote={(note) => {
+            setActiveNote(note);
           }}
           onDeleteNote={handleDeleteTask}
           onAddNewNote={() => {
@@ -562,10 +629,9 @@ function GalaxyQuestMain({
             notificationsEnabled={notificationsEnabled}
             backendOnline={backendOnline}
             onPressRankInfo={() => setRankModalVisible(true)}
-            onPressBackendConfig={() => {
-              setApiUrlInput(galaxyApi.getBaseUrl());
-              setApiConfigVisible(true);
-            }}
+            onPressBackendConfig={
+              __DEV__ && !isGuest ? () => setApiConfigVisible(true) : undefined
+            }
             horizontalMargin={horizontalMargin}
             hudPadding={hudPadding}
             hudMarginBottom={hudMarginBottom}
@@ -758,9 +824,14 @@ function GalaxyQuestMain({
               isProcessing={!!processingIds[item.id]}
               onToggleStatus={handleToggleStatus}
               onEdit={(task) => {
-                setEditingTask(task);
-                setModalVisible(true);
+                if (task.category === "Note") {
+                  setActiveNote(task);
+                } else {
+                  setEditingTask(task);
+                  setModalVisible(true);
+                }
               }}
+              onOpenNote={(note) => setActiveNote(note)}
               onDelete={handleDeleteTask}
               horizontalMargin={horizontalMargin}
               isSmallDevice={isSmallDevice}
@@ -834,11 +905,21 @@ function GalaxyQuestMain({
           editingTask={editingTask}
           expRewards={serverState.metadata.expRewards}
           defaultCategory={currentTab === "notes" ? "Note" : "Daily"}
+          noteOnly={currentTab === "notes" && !editingTask}
           onClose={() => {
             setModalVisible(false);
             setEditingTask(null);
           }}
           onSubmit={handleSaveTask}
+        />
+
+        {/* Full-Screen Device-Style Notepad Editor for Notes */}
+        <NoteEditorModal
+          visible={!!resolvedActiveNote}
+          note={resolvedActiveNote}
+          onClose={() => setActiveNote(null)}
+          onSave={handleSaveNoteContent}
+          onDelete={handleDeleteTask}
         />
 
         {/* RPG Rank & 1.5x Scaling Codex Modal */}
@@ -849,105 +930,16 @@ function GalaxyQuestMain({
           onClose={() => setRankModalVisible(false)}
         />
 
-        {/* Backend Endpoint Configuration Modal */}
-        <Modal
+        {/* Dev Backend Endpoint Configuration Modal */}
+        <DevBackendConfigModal
           visible={apiConfigVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setApiConfigVisible(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            className="flex-1 justify-center items-center bg-black/85 px-6"
-          >
-            <View
-              style={styles.configCard}
-              className="rounded-3xl p-5 w-full max-w-sm"
-            >
-              <View className="flex-row items-center">
-                <View className="mr-1.5">
-                  <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
-                </View>
-                <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-                  Security & Server Authority
-                </Text>
-              </View>
-              <Text className="text-lg font-black text-white mt-0.5 mb-1">
-                Backend Endpoint
-              </Text>
-              <Text className="text-xs text-[#FFB6C1]/80 mb-3">
-                All gamification math, EXP rewards, and task mutations execute
-                on the backend server.
-              </Text>
-
-              {/* Quick Presets */}
-              <View className="flex-row flex-wrap mb-3">
-                <TouchableOpacity
-                  onPress={() =>
-                    setApiUrlInput("http://192.168.100.51:5000/api")
-                  }
-                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493] flex-row items-center"
-                >
-                  <View className="mr-1">
-                    <GalaxyIcon name="smartphone" size={11} color="#FF69B4" />
-                  </View>
-                  <Text className="text-[10px] font-bold text-[#FF69B4]">
-                    Wi-Fi: 192.168.100.51
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
-                  className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
-                >
-                  <View className="mr-1">
-                    <GalaxyIcon name="cpu" size={11} color="#FFB6C1" />
-                  </View>
-                  <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                    Emulator (10.0.2.2)
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setApiUrlInput("http://localhost:5000/api")}
-                  className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
-                >
-                  <View className="mr-1">
-                    <GalaxyIcon name="monitor" size={11} color="#FFB6C1" />
-                  </View>
-                  <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                    Localhost
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <TextInput
-                value={apiUrlInput}
-                onChangeText={setApiUrlInput}
-                placeholder="http://192.168.100.51:5000/api"
-                placeholderTextColor="#8A3B68"
-                autoCapitalize="none"
-                style={styles.searchBox}
-                className="rounded-xl px-3.5 py-2.5 text-xs text-white mb-4 font-mono"
-              />
-
-              <View className="flex-row">
-                <TouchableOpacity
-                  onPress={() => setApiConfigVisible(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-[#140710] border border-[#2E1122] items-center mr-2"
-                >
-                  <Text className="text-xs font-bold text-[#FFB6C1]">
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleSaveApiUrl}
-                  className="flex-1 py-2.5 rounded-xl bg-[#FF1493] items-center"
-                >
-                  <Text className="text-xs font-black text-black">Connect</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
+          eyebrow="Security & Server Authority"
+          title="Backend Endpoint"
+          subtitle="All gamification math, EXP rewards, and task mutations execute on the backend server."
+          submitLabel="Connect"
+          onClose={() => setApiConfigVisible(false)}
+          onSaved={syncWithBackend}
+        />
     </View>
   );
 }

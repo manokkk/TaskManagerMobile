@@ -19,6 +19,7 @@ interface CreateTaskModalProps {
   editingTask?: Task | null;
   expRewards: Record<TaskCategory, number>;
   defaultCategory?: TaskCategory;
+  noteOnly?: boolean;
   onClose: () => void;
   onSubmit: (input: TaskInput, existingTaskId?: string) => void;
 }
@@ -48,6 +49,7 @@ export const CreateTaskModal = ({
   editingTask,
   expRewards,
   defaultCategory,
+  noteOnly = false,
   onClose,
   onSubmit,
 }: CreateTaskModalProps) => {
@@ -72,9 +74,11 @@ export const CreateTaskModal = ({
     }
   }, [visible, editingTask, defaultCategory]);
 
+  const isNoteMode = category === "Note";
+
   const handleSave = () => {
     if (!title.trim()) {
-      setErrorMessage("Title is required.");
+      setErrorMessage(isNoteMode ? "Note title is required." : "Title is required.");
       return;
     }
 
@@ -89,7 +93,9 @@ export const CreateTaskModal = ({
     onSubmit(
       {
         title: title.trim(),
-        description: description.trim() || undefined,
+        description: isNoteMode
+          ? editingTask?.description || undefined
+          : description.trim() || undefined,
         category,
         scheduledAt,
       },
@@ -124,10 +130,22 @@ export const CreateTaskModal = ({
             <View className="flex-row items-center justify-between mb-4">
               <View>
                 <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-                  {editingTask ? "Update Mission Parameters" : "Deploy New Mission"}
+                  {isNoteMode
+                    ? editingTask
+                      ? "Update Note"
+                      : "New Notepad Entry"
+                    : editingTask
+                    ? "Update Mission Parameters"
+                    : "Deploy New Mission"}
                 </Text>
                 <Text className="text-xl font-black text-white mt-0.5">
-                  {editingTask ? "Edit Galaxy Task" : "New Galaxy Task"}
+                  {isNoteMode
+                    ? editingTask
+                      ? "Edit Note"
+                      : "New Note"
+                    : editingTask
+                    ? "Edit Galaxy Task"
+                    : "New Galaxy Task"}
                 </Text>
               </View>
               <TouchableOpacity
@@ -139,44 +157,48 @@ export const CreateTaskModal = ({
             </View>
 
             {/* Category Selector with Backend EXP Bounties */}
-            <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1] mb-2">
-              Mission Frequency & Server EXP Bounty
-            </Text>
-            <View className="flex-row mb-4">
-              {categories.map((cat) => {
-                const isSelected = category === cat;
-                const reward = expRewards[cat];
-                return (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setCategory(cat)}
-                    style={
-                      isSelected ? styles.categoryActive : styles.categoryInactive
-                    }
-                    className="flex-1 py-2.5 mx-1 rounded-2xl items-center"
-                  >
-                    <Text
-                      className={`text-xs font-black uppercase ${
-                        isSelected ? "text-black" : "text-white"
-                      }`}
-                    >
-                      {cat}
-                    </Text>
-                    <Text
-                      className={`text-[10px] font-bold mt-0.5 ${
-                        isSelected ? "text-black/80" : "text-[#FF69B4]"
-                      }`}
-                    >
-                      {reward > 0 ? `+${reward} EXP` : "No EXP"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {!(noteOnly && !editingTask) && (
+              <>
+                <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1] mb-2">
+                  Mission Frequency & Server EXP Bounty
+                </Text>
+                <View className="flex-row mb-4">
+                  {categories.map((cat) => {
+                    const isSelected = category === cat;
+                    const reward = expRewards[cat];
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        onPress={() => setCategory(cat)}
+                        style={
+                          isSelected ? styles.categoryActive : styles.categoryInactive
+                        }
+                        className="flex-1 py-2.5 mx-1 rounded-2xl items-center"
+                      >
+                        <Text
+                          className={`text-xs font-black uppercase ${
+                            isSelected ? "text-black" : "text-white"
+                          }`}
+                        >
+                          {cat}
+                        </Text>
+                        <Text
+                          className={`text-[10px] font-bold mt-0.5 ${
+                            isSelected ? "text-black/80" : "text-[#FF69B4]"
+                          }`}
+                        >
+                          {reward > 0 ? `+${reward} EXP` : "No EXP"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
             {/* Title Input */}
             <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1] mb-1.5">
-              Mission Title *
+              {isNoteMode ? "Note Title *" : "Mission Title *"}
             </Text>
             <TextInput
               value={title}
@@ -184,27 +206,48 @@ export const CreateTaskModal = ({
                 setTitle(val);
                 if (errorMessage) setErrorMessage(null);
               }}
-              placeholder="e.g. Ship Notification Engine"
+              placeholder={
+                isNoteMode
+                  ? "e.g. Project Ideas, Meeting Notes..."
+                  : "e.g. Ship Notification Engine"
+              }
               placeholderTextColor="#8A3B68"
+              autoFocus={noteOnly && !editingTask}
               style={styles.inputField}
               className="rounded-xl px-4 py-3 text-white text-sm mb-3.5"
             />
 
-            {/* Description Input */}
-            <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1] mb-1.5">
-              Briefing Notes (Optional)
-            </Text>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Add coordinates, checklists, or mission context..."
-              placeholderTextColor="#8A3B68"
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              style={styles.inputField}
-              className="rounded-xl px-4 py-3 text-white text-sm mb-4 min-h-[72px]"
-            />
+            {/* Description Input (Tasks only; Notes open in the full-screen notepad) */}
+            {isNoteMode ? (
+              <View
+                style={styles.noteHintBox}
+                className="rounded-xl px-3.5 py-2.5 mb-4 flex-row items-center"
+              >
+                <View className="mr-2">
+                  <GalaxyIcon name="note" size={14} color="#FF69B4" />
+                </View>
+                <Text className="text-xs text-[#FFB6C1]/80 flex-1">
+                  Tap this note after creating it to open the notepad and write inside.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1] mb-1.5">
+                  Briefing Notes (Optional)
+                </Text>
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Add coordinates, checklists, or mission context..."
+                  placeholderTextColor="#8A3B68"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  style={styles.inputField}
+                  className="rounded-xl px-4 py-3 text-white text-sm mb-4 min-h-[72px]"
+                />
+              </>
+            )}
 
             {errorMessage ? (
               <View className="mb-3 px-3 py-2 rounded-xl bg-[#1F0712] border border-[#FF1493] flex-row items-center">
@@ -224,7 +267,7 @@ export const CreateTaskModal = ({
                 className="flex-1 py-3.5 rounded-2xl bg-[#140710] border border-[#2E1122] items-center mr-2"
               >
                 <Text className="text-[#FFB6C1] font-bold text-xs uppercase tracking-wider">
-                  Abort
+                  {isNoteMode ? "Cancel" : "Abort"}
                 </Text>
               </TouchableOpacity>
 
@@ -234,7 +277,11 @@ export const CreateTaskModal = ({
                 className="flex-1 py-3.5 rounded-2xl items-center"
               >
                 <Text className="text-black font-black text-xs uppercase tracking-wider">
-                  {editingTask ? "Save Changes" : "Launch Mission"}
+                  {editingTask
+                    ? "Save Changes"
+                    : isNoteMode
+                    ? "Create Note"
+                    : "Launch Mission"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -261,6 +308,11 @@ const styles = StyleSheet.create({
   },
   inputField: {
     backgroundColor: "#000000",
+    borderWidth: 1,
+    borderColor: "#2E1122",
+  },
+  noteHintBox: {
+    backgroundColor: "#140710",
     borderWidth: 1,
     borderColor: "#2E1122",
   },

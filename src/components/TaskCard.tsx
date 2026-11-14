@@ -1,12 +1,14 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Task } from "../types/task";
 import { GalaxyIcon } from "./GalaxyIcon";
+import { getNotePreviewSummary } from "../utils/noteDocument";
 
 interface TaskCardProps {
   task: Task;
   isProcessing?: boolean;
   onToggleStatus: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onOpenNote?: (task: Task) => void;
   onDelete: (id: string) => void;
   horizontalMargin?: number;
   isSmallDevice?: boolean;
@@ -26,14 +28,16 @@ export const TaskCard = ({
   isProcessing = false,
   onToggleStatus,
   onEdit,
+  onOpenNote,
   onDelete,
   horizontalMargin = 16,
   isSmallDevice = false,
 }: TaskCardProps) => {
-  const isDone = task.status === "Done";
   const isNote = task.category === "Note";
+  const isDone = !isNote && task.status === "Done";
   const isOverdue =
     !isDone && !isNote && new Date(task.scheduledAt).getTime() < Date.now();
+  const notePreview = isNote ? getNotePreviewSummary(task.description) : null;
 
   return (
     <View
@@ -44,25 +48,39 @@ export const TaskCard = ({
       className={`my-1.5 ${isSmallDevice ? "p-3" : "p-4"} rounded-2xl`}
     >
       <View className="flex-row items-start justify-between">
-        {/* Interactive Galaxy Checkbox + Task Content */}
+        {/* Interactive Galaxy Checkbox for Tasks; Note Badge for Notes (no checkbox) */}
         <View className="flex-row items-start flex-1 mr-2">
-          <TouchableOpacity
-            onPress={() => onToggleStatus(task)}
-            disabled={isProcessing}
-            activeOpacity={0.75}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isDone, disabled: isProcessing }}
-            style={isDone ? styles.checkboxChecked : styles.checkboxUnchecked}
-            className="w-7 h-7 rounded-lg mr-3 mt-0.5 items-center justify-center"
-          >
-            {isDone ? (
-              <GalaxyIcon name="check" size={14} color="#000000" strokeWidth={2.5} />
-            ) : (
-              <View className="w-2 h-2 rounded-full bg-[#FF1493]/30" />
-            )}
-          </TouchableOpacity>
+          {isNote ? (
+            <View
+              style={styles.noteIconBox}
+              className="w-7 h-7 rounded-lg mr-3 mt-0.5 items-center justify-center"
+            >
+              <GalaxyIcon name="note" size={14} color="#FF1493" />
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => onToggleStatus(task)}
+              disabled={isProcessing}
+              activeOpacity={0.75}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isDone, disabled: isProcessing }}
+              style={isDone ? styles.checkboxChecked : styles.checkboxUnchecked}
+              className="w-7 h-7 rounded-lg mr-3 mt-0.5 items-center justify-center"
+            >
+              {isDone ? (
+                <GalaxyIcon name="check" size={14} color="#000000" strokeWidth={2.5} />
+              ) : (
+                <View className="w-2 h-2 rounded-full bg-[#FF1493]/30" />
+              )}
+            </TouchableOpacity>
+          )}
 
-          <View className="flex-1">
+          <TouchableOpacity
+            disabled={!isNote || !onOpenNote}
+            onPress={() => isNote && onOpenNote?.(task)}
+            activeOpacity={isNote && onOpenNote ? 0.75 : 1}
+            className="flex-1"
+          >
             <View className="flex-row items-center flex-wrap mb-1">
               <View
                 style={styles.categoryBadge}
@@ -70,22 +88,24 @@ export const TaskCard = ({
               >
                 <Text className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF1493]">
                   {task.category}
-                  {task.expReward > 0 ? ` • +${task.expReward} EXP` : " • Memo"}
+                  {task.expReward > 0 ? ` • +${task.expReward} EXP` : " • Notepad"}
                 </Text>
               </View>
 
-              <View
-                style={isDone ? styles.statusDoneBadge : styles.statusPendingBadge}
-                className="px-2 py-0.5 rounded-full mb-1"
-              >
-                <Text
-                  className={`text-[9px] font-bold uppercase ${
-                    isDone ? "text-black" : "text-[#FF69B4]"
-                  }`}
+              {!isNote && (
+                <View
+                  style={isDone ? styles.statusDoneBadge : styles.statusPendingBadge}
+                  className="px-2 py-0.5 rounded-full mb-1"
                 >
-                  {task.status}
-                </Text>
-              </View>
+                  <Text
+                    className={`text-[9px] font-bold uppercase ${
+                      isDone ? "text-black" : "text-[#FF69B4]"
+                    }`}
+                  >
+                    {task.status}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <Text
@@ -96,7 +116,38 @@ export const TaskCard = ({
               {task.title}
             </Text>
 
-            {task.description ? (
+            {isNote ? (
+              <>
+                {notePreview?.snippet ? (
+                  <Text
+                    className="text-xs mt-1 leading-relaxed text-[#FFB6C1]/80"
+                    numberOfLines={2}
+                  >
+                    {notePreview.snippet}
+                  </Text>
+                ) : notePreview && notePreview.badges.length === 0 ? (
+                  <Text className="text-xs italic text-[#8A3B68] mt-1">
+                    Tap to open notepad and write inside...
+                  </Text>
+                ) : null}
+
+                {notePreview && notePreview.badges.length > 0 && (
+                  <View className="flex-row flex-wrap mt-1.5">
+                    {notePreview.badges.map((badge) => (
+                      <View
+                        key={badge}
+                        style={styles.statusPendingBadge}
+                        className="px-2 py-0.5 rounded-full mr-1.5 mb-1"
+                      >
+                        <Text className="text-[9px] font-bold text-[#FF69B4]">
+                          {badge}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : task.description ? (
               <Text
                 className={`text-xs mt-1 leading-relaxed ${
                   isDone ? "text-[#8A3B68]/60" : "text-[#FFB6C1]/80"
@@ -106,7 +157,7 @@ export const TaskCard = ({
                 {task.description}
               </Text>
             ) : null}
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Edit & Delete Actions */}
@@ -201,6 +252,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 10,
+  },
+  noteIconBox: {
+    backgroundColor: "#140710",
+    borderWidth: 1,
+    borderColor: "#2E1122",
   },
   categoryBadge: {
     backgroundColor: "#140710",

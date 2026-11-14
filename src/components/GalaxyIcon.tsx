@@ -35,7 +35,19 @@ export type GalaxyIconName =
   | "star"
   | "crown"
   | "compass"
-  | "arrow-right";
+  | "arrow-right"
+  | "arrow-left"
+  | "undo"
+  | "redo"
+  | "ai-pen"
+  | "waveform"
+  | "image"
+  | "squiggle"
+  | "checkbox-square"
+  | "text-format"
+  | "mindmap"
+  | "eraser"
+  | "mic";
 
 interface GalaxyIconProps {
   name: GalaxyIconName;
@@ -520,6 +532,139 @@ export const GalaxyIcon: React.FC<GalaxyIconProps> = ({
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Line x1="5" y1="12" x2="19" y2="12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
           <Polyline points="12 5 19 12 12 19" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case "arrow-left":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Line x1="19" y1="12" x2="5" y2="12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Polyline points="12 19 5 12 12 5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case "undo":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Polyline points="9 14 4 9 9 4" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case "redo":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Polyline points="15 14 20 9 15 4" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case "ai-pen":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M15.5 4.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M5 3v3M3.5 4.5h3"
+            stroke="#FF69B4"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+          <Path
+            d="M19 15v3M17.5 16.5h3"
+            stroke="#38BDF8"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+
+    case "waveform":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Line x1="4" y1="10" x2="4" y2="14" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="8" y1="7" x2="8" y2="17" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="12" y1="4" x2="12" y2="20" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="16" y1="7" x2="16" y2="17" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="20" y1="10" x2="20" y2="14" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+
+    case "image":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect x="3" y="4" width="18" height="16" rx="2.5" stroke={color} strokeWidth={strokeWidth} />
+          <Circle cx="8.5" cy="9.5" r="1.5" fill={color} />
+          <Polyline points="21 15 16 10 5 20" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case "squiggle":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 17c2.5-6 4.5-10 6.5-10s1.5 9 3.5 9 3-7 5-7c1 0 1.5 2 1.5 3"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+
+    case "checkbox-square":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect x="3.5" y="3.5" width="17" height="17" rx="3.5" stroke={color} strokeWidth={strokeWidth} />
+          <Polyline points="8.5 12 11 14.5 16 9" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case "text-format":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Line x1="5" y1="6" x2="19" y2="6" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="12" y1="6" x2="12" y2="19" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="9" y1="19" x2="15" y2="19" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+
+    case "mindmap":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect x="3" y="9.5" width="5.5" height="5" rx="1.2" stroke={color} strokeWidth={strokeWidth} />
+          <Rect x="15.5" y="4" width="5.5" height="4.5" rx="1.2" stroke={color} strokeWidth={strokeWidth} />
+          <Rect x="15.5" y="15.5" width="5.5" height="4.5" rx="1.2" stroke={color} strokeWidth={strokeWidth} />
+          <Path d="M8.5 12h3.5V6.25h3.5M12 12v5.75h3.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case "eraser":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path d="M22 21H7" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Path d="m5 11 9 9" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+
+    case "mic":
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={strokeWidth} />
+          <Path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1="12" y1="19" x2="12" y2="22" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
         </Svg>
       );
   }

@@ -4,22 +4,22 @@
     "slug": "task-manager-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
-      }
+      "bundleIdentifier": "com.galaxyquest.taskmanager",
+      "supportsTablet": true
     },
     "android": {
+      "package": "com.galaxyquest.taskmanager",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       }
     },
@@ -27,13 +27,25 @@
       [
         "expo-notifications",
         {
-          "color": "#FF1493"
+          "icon": "./assets/notification-icon.png",
+          "color": "#FF1493",
+          "enableRemoteNotifications": false
         }
       ],
-      "expo-status-bar"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photo library so you can attach images to notes.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use your camera so you can take photos for your notes.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-status-bar",
+      "expo-secure-store"
     ],
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     }
   }
 }

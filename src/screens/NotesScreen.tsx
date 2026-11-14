@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   View,
   Text,
   TextInput,
@@ -11,23 +12,31 @@ import {
 import { Task } from "../types/task";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { GalaxyIcon } from "../components/GalaxyIcon";
+import { getNotePlainText, getNotePreviewSummary } from "../utils/noteDocument";
 
 interface NotesScreenProps {
   notes: Task[];
   loading: boolean;
   onRefresh: () => void;
-  onToggleStatus: (id: string) => void;
-  onEditNote: (note: Task) => void;
+  onOpenNote: (note: Task) => void;
   onDeleteNote: (id: string) => void;
   onAddNewNote: () => void;
+}
+
+function formatNoteDate(isoString: string): string {
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export const NotesScreen = ({
   notes,
   loading,
   onRefresh,
-  onToggleStatus,
-  onEditNote,
+  onOpenNote,
   onDeleteNote,
   onAddNewNote,
 }: NotesScreenProps) => {
@@ -39,13 +48,24 @@ export const NotesScreen = ({
   const filteredNotes = notes.filter((n) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    return (
-      n.title.toLowerCase().includes(q) ||
-      (n.description && n.description.toLowerCase().includes(q))
-    );
+    const bodyText = getNotePlainText(n.description).toLowerCase();
+    return n.title.toLowerCase().includes(q) || bodyText.includes(q);
   });
 
-  const completedCount = notes.filter((n) => n.status === "Done").length;
+  const handleConfirmDelete = (note: Task) => {
+    Alert.alert(
+      "Delete Note",
+      `Delete "${note.title}" permanently?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => onDeleteNote(note.id),
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -92,10 +112,10 @@ export const NotesScreen = ({
 
           <View className="flex-row items-center justify-between pt-2 border-t border-[#2E1122]">
             <Text className="text-[10px] text-[#FFB6C1]/80">
-              Not bound to Daily, Weekly, or Monthly schedules
+              Tap any note to open the notepad and write inside
             </Text>
             <Text className="text-xs font-bold text-[#FF1493]">
-              {completedCount}/{notes.length} Completed
+              {notes.length} {notes.length === 1 ? "Note" : "Notes"}
             </Text>
           </View>
         </View>
@@ -153,7 +173,7 @@ export const NotesScreen = ({
                 {searchQuery ? `No notes matching "${searchQuery}"` : "No Notes in Sector"}
               </Text>
               <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1.5 mb-5 max-w-xs">
-                Notes are quick tasks, checklists, and memos that don't belong to a daily, weekly, or monthly cadence.
+                Create a note with a title, then tap it anytime to open your notepad and write freely inside.
               </Text>
               {!searchQuery && (
                 <TouchableOpacity
@@ -172,69 +192,91 @@ export const NotesScreen = ({
             </View>
           }
           renderItem={({ item }) => {
-            const isDone = item.status === "Done";
+            const preview = getNotePreviewSummary(item.description);
+            const dateLabel = formatNoteDate(item.updatedAt || item.createdAt);
+
             return (
-              <View
-                style={[styles.noteCard, isDone && styles.noteCardDone]}
+              <TouchableOpacity
+                onPress={() => onOpenNote(item)}
+                activeOpacity={0.78}
+                style={styles.noteCard}
                 className="rounded-2xl p-4 mb-3"
+                accessibilityRole="button"
+                accessibilityLabel={`Open note ${item.title}`}
               >
                 <View className="flex-row items-start justify-between">
-                  {/* Status Toggle & Title */}
-                  <TouchableOpacity
-                    onPress={() => onToggleStatus(item.id)}
-                    className="flex-row items-start flex-1 mr-2"
-                    activeOpacity={0.7}
+                  {/* Note Icon Badge (no checkbox — notes are not tasks) */}
+                  <View
+                    style={styles.noteIconBadge}
+                    className="w-8 h-8 rounded-xl items-center justify-center mr-3 mt-0.5"
                   >
-                    <View
-                      style={[
-                        styles.checkbox,
-                        isDone ? styles.checkboxDone : styles.checkboxPending,
-                      ]}
-                      className="w-5 h-5 rounded-md items-center justify-center mr-2.5 mt-0.5"
-                    >
-                      {isDone && (
-                        <GalaxyIcon name="check" size={12} color="#000000" strokeWidth={2.5} />
-                      )}
-                    </View>
+                    <GalaxyIcon name="note" size={15} color="#FF1493" />
+                  </View>
 
-                    <View className="flex-1">
+                  {/* Note Title, Snippet & Rich Content Badges */}
+                  <View className="flex-1 mr-2">
+                    <Text
+                      numberOfLines={2}
+                      className="text-sm font-bold text-white"
+                    >
+                      {item.title}
+                    </Text>
+
+                    {preview.snippet ? (
                       <Text
-                        className={`text-sm font-bold ${isDone ? "text-[#FFB6C1]/50 line-through" : "text-white"
-                          }`}
+                        numberOfLines={3}
+                        className="text-xs mt-1 leading-relaxed text-[#FFB6C1]/80"
                       >
-                        {item.title}
+                        {preview.snippet}
                       </Text>
-                      {item.description ? (
-                        <Text
-                          className={`text-xs mt-1 ${isDone ? "text-[#FFB6C1]/40 line-through" : "text-[#FFB6C1]/80"
-                            }`}
-                        >
-                          {item.description}
+                    ) : preview.badges.length === 0 ? (
+                      <Text className="text-xs italic text-[#8A3B68] mt-1">
+                        Tap to open notepad and write inside...
+                      </Text>
+                    ) : null}
+
+                    {preview.badges.length > 0 && (
+                      <View className="flex-row flex-wrap mt-2">
+                        {preview.badges.map((badge) => (
+                          <View
+                            key={badge}
+                            style={styles.metaChip}
+                            className="px-2 py-0.5 rounded-full mr-1.5 mb-1"
+                          >
+                            <Text className="text-[10px] font-bold text-[#FF69B4]">
+                              {badge}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    <View className="flex-row items-center mt-1.5">
+                      {dateLabel ? (
+                        <Text className="text-[10px] font-mono text-[#8A3B68]">
+                          {dateLabel}
+                        </Text>
+                      ) : null}
+                      {preview.charCount > 0 ? (
+                        <Text className="text-[10px] font-mono text-[#FF69B4]/70 ml-2">
+                          • {preview.charCount}{" "}
+                          {preview.charCount === 1 ? "char" : "chars"}
                         </Text>
                       ) : null}
                     </View>
-                  </TouchableOpacity>
-
-                  {/* Actions (Edit / Delete) */}
-                  <View className="flex-row items-center">
-                    <TouchableOpacity
-                      onPress={() => onEditNote(item)}
-                      className="w-7 h-7 rounded-lg bg-[#140710] border border-[#2E1122] items-center justify-center mr-1.5"
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <GalaxyIcon name="edit" size={13} color="#FF69B4" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => onDeleteNote(item.id)}
-                      className="w-7 h-7 rounded-lg bg-[#140710] border border-[#2E1122] items-center justify-center"
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <GalaxyIcon name="trash" size={13} color="#FF1493" />
-                    </TouchableOpacity>
                   </View>
+
+                  {/* Delete Action */}
+                  <TouchableOpacity
+                    onPress={() => handleConfirmDelete(item)}
+                    className="w-8 h-8 rounded-lg bg-[#140710] border border-[#2E1122] items-center justify-center"
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel="Delete note"
+                  >
+                    <GalaxyIcon name="trash" size={14} color="#FF1493" />
+                  </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           }}
         />
@@ -276,20 +318,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#2E1122",
   },
-  noteCardDone: {
-    opacity: 0.65,
-    borderColor: "#1F0B17",
+  noteIconBadge: {
+    backgroundColor: "#140710",
+    borderWidth: 1,
+    borderColor: "#2E1122",
   },
-  checkbox: {
-    borderWidth: 1.5,
-  },
-  checkboxPending: {
-    borderColor: "#FF69B4",
-    backgroundColor: "transparent",
-  },
-  checkboxDone: {
-    borderColor: "#FF1493",
-    backgroundColor: "#FF1493",
+  metaChip: {
+    backgroundColor: "#140710",
+    borderWidth: 1,
+    borderColor: "#2E1122",
   },
 });
 

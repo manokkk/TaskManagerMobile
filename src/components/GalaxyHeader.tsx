@@ -50,10 +50,11 @@ export const GalaxyHeader = ({
         <View className="flex-1 mr-2">
           <TouchableOpacity
             onPress={onPressBackendConfig}
+            disabled={!onPressBackendConfig}
             className="flex-row items-center"
             activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Configure server endpoint"
+            accessibilityRole={onPressBackendConfig ? "button" : "text"}
+            accessibilityLabel="Server connection status"
           >
             <View
               style={[
@@ -69,7 +70,9 @@ export const GalaxyHeader = ({
             >
               {backendOnline ? "Server Authoritative" : "Server Offline"}
             </Text>
-            <GalaxyIcon name="settings" size={11} color="#FF69B4" />
+            {onPressBackendConfig ? (
+              <GalaxyIcon name="settings" size={11} color="#FF69B4" />
+            ) : null}
           </TouchableOpacity>
           <Text
             numberOfLines={1}

@@ -6,19 +6,17 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { AuthUser, UserProgress } from "../types/task";
 import { galaxyApi } from "../services/api";
 import { sessionStorage } from "../services/sessionStorage";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { GalaxyIcon } from "../components/GalaxyIcon";
+import { DevBackendConfigModal } from "../components/DevBackendConfigModal";
 
 interface SettingsScreenProps {
   currentUser: AuthUser | null;
+  isGuest?: boolean;
   sessionExpiresAt?: number | null;
   progress: UserProgress;
   backendOnline: boolean;
@@ -29,6 +27,7 @@ interface SettingsScreenProps {
 
 export const SettingsScreen = ({
   currentUser,
+  isGuest = false,
   sessionExpiresAt,
   progress,
   backendOnline,
@@ -40,7 +39,6 @@ export const SettingsScreen = ({
     useResponsiveLayout();
 
   const [configModalVisible, setConfigModalVisible] = useState(false);
-  const [apiUrlInput, setApiUrlInput] = useState(galaxyApi.getBaseUrl());
   const sessionInfo = sessionStorage.getRemainingTimeInfo(
     sessionExpiresAt ?? null
   );
@@ -58,14 +56,6 @@ export const SettingsScreen = ({
         },
       ]
     );
-  };
-
-  const handleSaveApiUrl = () => {
-    if (apiUrlInput.trim()) {
-      galaxyApi.setBaseUrl(apiUrlInput.trim());
-      setConfigModalVisible(false);
-      onRefreshHealth();
-    }
   };
 
   return (
@@ -144,21 +134,23 @@ export const SettingsScreen = ({
             )}
           </View>
 
-          {/* Supabase Database Telemetry */}
+          {/* Storage / Database Telemetry */}
           <View style={styles.card} className="rounded-3xl p-4 mb-4">
             <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FFB6C1] mb-2.5">
-              Supabase Cloud Database
+              {isGuest ? "Local Guest Storage" : "Supabase Cloud Database"}
             </Text>
 
             <View style={styles.infoRow} className="flex-row items-center justify-between py-2 border-b border-[#1F0B17]">
-              <Text className="text-xs text-[#FFB6C1]">PostgreSQL Status</Text>
+              <Text className="text-xs text-[#FFB6C1]">
+                {isGuest ? "Storage Mode" : "PostgreSQL Status"}
+              </Text>
               <View className="flex-row items-center">
                 <View
                   style={[
                     styles.statusDot,
                     {
                       backgroundColor:
-                        backendOnline && databaseStatus === "connected"
+                        isGuest || (backendOnline && databaseStatus === "connected")
                           ? "#10B981"
                           : "#FF1493",
                     },
@@ -166,67 +158,93 @@ export const SettingsScreen = ({
                 />
                 <Text
                   className={`text-xs font-bold ${
-                    backendOnline && databaseStatus === "connected"
+                    isGuest || (backendOnline && databaseStatus === "connected")
                       ? "text-[#10B981]"
                       : "text-[#FF69B4]"
                   }`}
                 >
-                  {backendOnline && databaseStatus === "connected"
-                    ? "Online & Synchronized"
-                    : "Unreachable"}
+                  {isGuest
+                    ? "Local Device Storage (Guest Mode)"
+                    : backendOnline && databaseStatus === "connected"
+                      ? "Online & Synchronized"
+                      : "Unreachable"}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.infoRow} className="flex-row items-center justify-between py-2 border-b border-[#1F0B17]">
-              <Text className="text-xs text-[#FFB6C1]">Database Region</Text>
-              <Text className="text-xs font-mono text-white/90">aws-0-ap-south-1</Text>
-            </View>
+            {isGuest ? (
+              <View style={styles.infoRow} className="flex-row items-center justify-between py-2">
+                <Text className="text-xs text-[#FFB6C1]">Cloud Isolation</Text>
+                <Text className="text-xs font-mono text-white/90">
+                  Private to this device only
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.infoRow} className="flex-row items-center justify-between py-2 border-b border-[#1F0B17]">
+                  <Text className="text-xs text-[#FFB6C1]">Database Region</Text>
+                  <Text className="text-xs font-mono text-white/90">aws-0-ap-south-1</Text>
+                </View>
 
-            <View style={styles.infoRow} className="flex-row items-center justify-between py-2 border-b border-[#1F0B17]">
-              <Text className="text-xs text-[#FFB6C1]">Prisma Schema Tables</Text>
-              <Text className="text-xs font-mono text-[#FF69B4]">User, Task, UserProfile</Text>
-            </View>
+                <View style={styles.infoRow} className="flex-row items-center justify-between py-2 border-b border-[#1F0B17]">
+                  <Text className="text-xs text-[#FFB6C1]">Prisma Schema Tables</Text>
+                  <Text className="text-xs font-mono text-[#FF69B4]">User, Task, UserProfile</Text>
+                </View>
 
-            <View style={styles.infoRow} className="flex-row items-center justify-between py-2">
-              <Text className="text-xs text-[#FFB6C1]">Pooler Mode</Text>
-              <Text className="text-xs font-mono text-white/90">Transaction (6543) / Direct (5432)</Text>
-            </View>
+                <View style={styles.infoRow} className="flex-row items-center justify-between py-2">
+                  <Text className="text-xs text-[#FFB6C1]">Pooler Mode</Text>
+                  <Text className="text-xs font-mono text-white/90">Transaction (6543) / Direct (5432)</Text>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Server Connection & Bridge */}
-          <View style={styles.card} className="rounded-3xl p-4 mb-4">
-            <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FFB6C1] mb-2.5">
-              Backend Endpoint Bridge
-            </Text>
-
-            <View className="mb-3">
-              <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">Current Active URL</Text>
-              <Text className="text-xs font-mono text-[#FF69B4] bg-[#050505] p-2.5 rounded-xl border border-[#2E1122]">
-                {galaxyApi.getBaseUrl()}
+          {!isGuest ? (
+            <View style={styles.card} className="rounded-3xl p-4 mb-4">
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FFB6C1] mb-2.5">
+                {__DEV__ ? "Backend Endpoint Bridge" : "Cloud Sync Bridge"}
               </Text>
-            </View>
 
-            <View className="flex-row">
-              <TouchableOpacity
-                onPress={() => setConfigModalVisible(true)}
-                style={styles.secondaryButton}
-                className="flex-1 py-2.5 rounded-xl items-center justify-center flex-row mr-2"
-              >
-                <Text className="text-xs font-bold text-[#FFB6C1] mr-1.5">Change Host IP</Text>
-                <GalaxyIcon name="settings" size={13} color="#FFB6C1" />
-              </TouchableOpacity>
+              {__DEV__ ? (
+                <View className="mb-3">
+                  <Text className="text-[10px] text-[#FFB6C1]/70 mb-1">Current Active URL</Text>
+                  <Text className="text-xs font-mono text-[#FF69B4] bg-[#050505] p-2.5 rounded-xl border border-[#2E1122]">
+                    {galaxyApi.getBaseUrl()}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.infoRow} className="flex-row items-center justify-between py-2 mb-3">
+                  <Text className="text-xs text-[#FFB6C1]">Server Connection</Text>
+                  <Text className="text-xs font-mono text-white/90">
+                    {backendOnline ? "Ready" : "Unavailable"}
+                  </Text>
+                </View>
+              )}
 
-              <TouchableOpacity
-                onPress={onRefreshHealth}
-                style={styles.pingButton}
-                className="flex-1 py-2.5 rounded-xl items-center justify-center flex-row"
-              >
-                <Text className="text-xs font-black text-black mr-1.5">Ping Backend</Text>
-                <GalaxyIcon name="radio" size={13} color="#000000" />
-              </TouchableOpacity>
+              <View className="flex-row">
+                {__DEV__ ? (
+                  <TouchableOpacity
+                    onPress={() => setConfigModalVisible(true)}
+                    style={styles.secondaryButton}
+                    className="flex-1 py-2.5 rounded-xl items-center justify-center flex-row mr-2"
+                  >
+                    <Text className="text-xs font-bold text-[#FFB6C1] mr-1.5">Change Host IP</Text>
+                    <GalaxyIcon name="settings" size={13} color="#FFB6C1" />
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity
+                  onPress={onRefreshHealth}
+                  style={styles.pingButton}
+                  className="flex-1 py-2.5 rounded-xl items-center justify-center flex-row"
+                >
+                  <Text className="text-xs font-black text-black mr-1.5">Ping Backend</Text>
+                  <GalaxyIcon name="radio" size={13} color="#000000" />
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {/* Log Out Danger Zone */}
           <View style={styles.logoutCard} className="rounded-3xl p-4 mb-6">
@@ -258,97 +276,16 @@ export const SettingsScreen = ({
         </View>
       </ScrollView>
 
-      {/* Backend API Configuration Modal */}
-      <Modal
+      {/* Dev Backend API Configuration Modal */}
+      <DevBackendConfigModal
         visible={configModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setConfigModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          className="flex-1 justify-center items-center bg-black/85 px-6"
-        >
-          <View style={styles.configModalCard} className="rounded-3xl p-5 w-full max-w-sm">
-            <View className="flex-row items-center">
-              <View className="mr-1.5">
-                <GalaxyIcon name="sparkles" size={11} color="#FF69B4" />
-              </View>
-              <Text className="text-[10px] font-bold uppercase tracking-widest text-[#FF69B4]">
-                Backend Endpoint
-              </Text>
-            </View>
-            <Text className="text-lg font-black text-white mt-0.5 mb-1">
-              Configure Server IP
-            </Text>
-            <Text className="text-xs text-[#FFB6C1]/80 mb-3">
-              Set the host address of TaskManagerBackend (port 5000).
-            </Text>
-
-            {/* Quick Presets */}
-            <View className="flex-row flex-wrap mb-3">
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://192.168.100.51:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#FF1493] flex-row items-center"
-              >
-                <View className="mr-1">
-                  <GalaxyIcon name="smartphone" size={11} color="#FF69B4" />
-                </View>
-                <Text className="text-[10px] font-bold text-[#FF69B4]">
-                  Wi-Fi: 192.168.100.51
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://10.0.2.2:5000/api")}
-                className="mr-2 mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
-              >
-                <View className="mr-1">
-                  <GalaxyIcon name="cpu" size={11} color="#FFB6C1" />
-                </View>
-                <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  Emulator (10.0.2.2)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setApiUrlInput("http://localhost:5000/api")}
-                className="mb-2 px-2.5 py-1 rounded-full bg-[#140710] border border-[#2E1122] flex-row items-center"
-              >
-                <View className="mr-1">
-                  <GalaxyIcon name="monitor" size={11} color="#FFB6C1" />
-                </View>
-                <Text className="text-[10px] font-bold text-[#FFB6C1]">
-                  Localhost
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              value={apiUrlInput}
-              onChangeText={setApiUrlInput}
-              placeholder="http://192.168.100.51:5000/api"
-              placeholderTextColor="#8A3B68"
-              autoCapitalize="none"
-              style={styles.modalInput}
-              className="rounded-xl px-3.5 py-2.5 text-xs text-white mb-4 font-mono"
-            />
-
-            <View className="flex-row">
-              <TouchableOpacity
-                onPress={() => setConfigModalVisible(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#140710] border border-[#2E1122] items-center mr-2"
-              >
-                <Text className="text-xs font-bold text-[#FFB6C1]">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSaveApiUrl}
-                className="flex-1 py-2.5 rounded-xl bg-[#FF1493] items-center"
-              >
-                <Text className="text-xs font-black text-black">Save & Ping</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        eyebrow="Backend Endpoint"
+        title="Configure Server IP"
+        subtitle="Set the host address of TaskManagerBackend (port 5000)."
+        submitLabel="Save & Ping"
+        onClose={() => setConfigModalVisible(false)}
+        onSaved={onRefreshHealth}
+      />
     </View>
   );
 };

@@ -1,8 +1,23 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { AuthResponse, AuthUser, GalaxyStateResponse, Task, TaskInput } from "../types/task";
+import {
+  AuthResponse,
+  AuthUser,
+  GalaxyStateResponse,
+  Task,
+  TaskInput,
+} from "../types/task";
 
 const getDefaultBaseUrl = (): string => {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, "");
+  }
+
+  if (!__DEV__) {
+    return "";
+  }
+
   // If running in Expo Go or development client, dynamically resolve the host PC's Wi-Fi IP
   const debuggerHost =
     Constants.expoConfig?.hostUri ||
@@ -24,6 +39,7 @@ const getDefaultBaseUrl = (): string => {
 };
 
 let currentBaseUrl = getDefaultBaseUrl();
+let currentAuthToken: string | null = null;
 
 export interface TaskFilterParams {
   category?: string;
@@ -47,6 +63,25 @@ function buildQueryString(params?: TaskFilterParams): string {
   return str ? `?${str}` : "";
 }
 
+function buildAuthHeaders(includeJson = false): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (currentAuthToken) {
+    headers.Authorization = `Bearer ${currentAuthToken}`;
+  }
+  return headers;
+}
+
+function createApiError(message: string, status?: number): Error & { status?: number } {
+  const err: Error & { status?: number } = new Error(message);
+  if (status !== undefined) {
+    err.status = status;
+  }
+  return err;
+}
+
 /**
  * Pure frontend HTTP client. All task validation, filtering, EXP calculation,
  * 1.5x level scaling, and rank tier resolution execute strictly on the backend.
@@ -57,13 +92,33 @@ export const galaxyApi = {
   },
 
   setBaseUrl(newUrl: string): void {
+    if (!__DEV__) return;
     currentBaseUrl = newUrl.trim().replace(/\/+$/, "");
   },
 
-  async checkHealth(): Promise<{ online: boolean; database: string; message: string }> {
+  getAuthToken(): string | null {
+    return currentAuthToken;
+  },
+
+  setAuthToken(token: string | null): void {
+    currentAuthToken = token;
+  },
+
+  async checkHealth(timeoutMs = __DEV__ ? 3500 : 55000): Promise<{
+    online: boolean;
+    database: string;
+    message: string;
+  }> {
+    if (!currentBaseUrl) {
+      return {
+        online: false,
+        database: "unreachable",
+        message: "Backend URL not configured (EXPO_PUBLIC_API_URL).",
+      };
+    }
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(`${currentBaseUrl}/health`, {
         signal: controller.signal,
       });
@@ -76,7 +131,11 @@ export const galaxyApi = {
           message: "Backend Connected",
         };
       }
-      return { online: false, database: "offline", message: `HTTP ${res.status}` };
+      return {
+        online: false,
+        database: "offline",
+        message: `HTTP ${res.status}`,
+      };
     } catch {
       return {
         online: false,
@@ -98,7 +157,7 @@ export const galaxyApi = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || "Registration failed");
+      throw createApiError(data.error || "Registration failed", res.status);
     }
     return data;
   },
@@ -114,7 +173,7 @@ export const galaxyApi = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || "Authentication failed");
+      throw createApiError(data.error || "Authentication failed", res.status);
     }
     return data;
   },
@@ -130,11 +189,7 @@ export const galaxyApi = {
       clearTimeout(timeoutId);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const error: Error & { status?: number } = new Error(
-          data.error || "Session invalid"
-        );
-        error.status = res.status;
-        throw error;
+        throw createApiError(data.error || "Session invalid", res.status);
       }
       return data;
     } finally {
@@ -146,9 +201,15 @@ export const galaxyApi = {
     filter?: TaskFilterParams
   ): Promise<GalaxyStateResponse> {
     const qs = buildQueryString(filter);
-    const res = await fetch(`${currentBaseUrl}/tasks${qs}`);
+    const res = await fetch(`${currentBaseUrl}/tasks${qs}`, {
+      headers: buildAuthHeaders(false),
+    });
     if (!res.ok) {
-      throw new Error(`Failed to fetch state (${res.status})`);
+      const errBody = await res.json().catch(() => ({}));
+      throw createApiError(
+        errBody.error || `Failed to fetch state (${res.status})`,
+        res.status
+      );
     }
     return res.json();
   },
@@ -160,12 +221,15 @@ export const galaxyApi = {
     const qs = buildQueryString(filter);
     const res = await fetch(`${currentBaseUrl}/tasks${qs}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildAuthHeaders(true),
       body: JSON.stringify(input),
     });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || "Failed to create mission on server");
+      throw createApiError(
+        errBody.error || "Failed to create mission on server",
+        res.status
+      );
     }
     return res.json();
   },
@@ -178,12 +242,15 @@ export const galaxyApi = {
     const qs = buildQueryString(filter);
     const res = await fetch(`${currentBaseUrl}/tasks/${id}${qs}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: buildAuthHeaders(true),
       body: JSON.stringify(input),
     });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || "Failed to update mission on server");
+      throw createApiError(
+        errBody.error || "Failed to update mission on server",
+        res.status
+      );
     }
     return res.json();
   },
@@ -195,10 +262,14 @@ export const galaxyApi = {
     const qs = buildQueryString(filter);
     const res = await fetch(`${currentBaseUrl}/tasks/${id}/toggle${qs}`, {
       method: "PATCH",
+      headers: buildAuthHeaders(false),
     });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || "Failed to toggle mission on server");
+      throw createApiError(
+        errBody.error || "Failed to toggle mission on server",
+        res.status
+      );
     }
     return res.json();
   },
@@ -211,11 +282,14 @@ export const galaxyApi = {
     const qs = buildQueryString(filter);
     const res = await fetch(`${currentBaseUrl}/tasks/${id}/notification${qs}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: buildAuthHeaders(true),
       body: JSON.stringify({ notificationId }),
     });
     if (!res.ok) {
-      throw new Error("Failed to sync notification ID with server");
+      throw createApiError(
+        "Failed to sync notification ID with server",
+        res.status
+      );
     }
     return res.json();
   },
@@ -227,10 +301,14 @@ export const galaxyApi = {
     const qs = buildQueryString(filter);
     const res = await fetch(`${currentBaseUrl}/tasks/${id}${qs}`, {
       method: "DELETE",
+      headers: buildAuthHeaders(false),
     });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || "Failed to delete mission on server");
+      throw createApiError(
+        errBody.error || "Failed to delete mission on server",
+        res.status
+      );
     }
     return res.json();
   },

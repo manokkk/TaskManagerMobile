@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import * as FileSystem from "expo-file-system/legacy";
 import { AuthUser } from "../types/task";
 
@@ -6,7 +7,7 @@ import { AuthUser } from "../types/task";
 export const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 const SESSION_STORAGE_KEY = "galaxy_quest_auth_session_v1";
-const SESSION_FILE_URI = FileSystem.documentDirectory
+const LEGACY_SESSION_FILE_URI = FileSystem.documentDirectory
   ? `${FileSystem.documentDirectory}${SESSION_STORAGE_KEY}.json`
   : null;
 
@@ -24,20 +25,48 @@ export type SessionCheckResult =
   | { status: "expired" }
   | { status: "none" };
 
+async function deleteLegacyFileSession(): Promise<void> {
+  if (!LEGACY_SESSION_FILE_URI) return;
+  try {
+    const info = await FileSystem.getInfoAsync(LEGACY_SESSION_FILE_URI);
+    if (info.exists) {
+      await FileSystem.deleteAsync(LEGACY_SESSION_FILE_URI, { idempotent: true });
+    }
+  } catch {
+    // Best-effort cleanup of legacy plaintext session file
+  }
+}
+
 async function readRawSession(): Promise<string | null> {
   try {
-    if (Platform.OS === "web" || !SESSION_FILE_URI) {
+    if (Platform.OS === "web") {
       if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
         return (globalThis as any).localStorage.getItem(SESSION_STORAGE_KEY);
       }
       return null;
     }
 
-    const info = await FileSystem.getInfoAsync(SESSION_FILE_URI);
-    if (!info.exists) {
-      return null;
+    const secureRaw = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
+    if (secureRaw) {
+      return secureRaw;
     }
-    return await FileSystem.readAsStringAsync(SESSION_FILE_URI);
+
+    // One-time migration from legacy plaintext file storage into SecureStore
+    if (LEGACY_SESSION_FILE_URI) {
+      const info = await FileSystem.getInfoAsync(LEGACY_SESSION_FILE_URI);
+      if (info.exists) {
+        const legacyRaw = await FileSystem.readAsStringAsync(
+          LEGACY_SESSION_FILE_URI
+        );
+        if (legacyRaw) {
+          await SecureStore.setItemAsync(SESSION_STORAGE_KEY, legacyRaw);
+          await deleteLegacyFileSession();
+          return legacyRaw;
+        }
+      }
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -45,7 +74,7 @@ async function readRawSession(): Promise<string | null> {
 
 async function writeRawSession(serialized: string): Promise<void> {
   try {
-    if (Platform.OS === "web" || !SESSION_FILE_URI) {
+    if (Platform.OS === "web") {
       if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
         (globalThis as any).localStorage.setItem(
           SESSION_STORAGE_KEY,
@@ -55,7 +84,8 @@ async function writeRawSession(serialized: string): Promise<void> {
       return;
     }
 
-    await FileSystem.writeAsStringAsync(SESSION_FILE_URI, serialized);
+    await SecureStore.setItemAsync(SESSION_STORAGE_KEY, serialized);
+    await deleteLegacyFileSession();
   } catch (err) {
     console.warn("Failed to persist 7-day auth session:", err);
   }
@@ -63,17 +93,15 @@ async function writeRawSession(serialized: string): Promise<void> {
 
 async function deleteRawSession(): Promise<void> {
   try {
-    if (Platform.OS === "web" || !SESSION_FILE_URI) {
+    if (Platform.OS === "web") {
       if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
         (globalThis as any).localStorage.removeItem(SESSION_STORAGE_KEY);
       }
       return;
     }
 
-    const info = await FileSystem.getInfoAsync(SESSION_FILE_URI);
-    if (info.exists) {
-      await FileSystem.deleteAsync(SESSION_FILE_URI, { idempotent: true });
-    }
+    await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
+    await deleteLegacyFileSession();
   } catch (err) {
     console.warn("Failed to clear auth session:", err);
   }

@@ -1,0 +1,84 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android-apk:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://taskmanagerbackend-rwin.onrender.com/api' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript lint check
+        run: npm run lint
+
+      - name: Generate Android native project (Expo prebuild)
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Android Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare APK output
+        run: |
+          mkdir -p build-output
+          cp android/app/build/outputs/apk/release/app-release.apk build-output/galaxy-quest-task-rpg.apk
+
+      - name: Upload APK build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: galaxy-quest-task-rpg-apk
+          path: build-output/galaxy-quest-task-rpg.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish APK to latest-apk GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view latest-apk >/dev/null 2>&1; then
+            gh release upload latest-apk build-output/galaxy-quest-task-rpg.apk --clobber
+            gh release edit latest-apk --notes "Latest Android APK built from commit ${{ github.sha }} (API: $EXPO_PUBLIC_API_URL)"
+          else
+            gh release create latest-apk build-output/galaxy-quest-task-rpg.apk \
+              --title "Galaxy Task RPG — Latest Android APK" \
+              --notes "Latest Android APK built from commit ${{ github.sha }} (API: $EXPO_PUBLIC_API_URL)" \
+              --prerelease
+          fi
