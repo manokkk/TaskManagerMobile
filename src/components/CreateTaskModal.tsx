@@ -24,24 +24,76 @@ interface CreateTaskModalProps {
   onSubmit: (input: TaskInput, existingTaskId?: string) => void;
 }
 
-function getCategoryScheduledAt(category: TaskCategory): string {
+function padTwo(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function formatDateInput(date: Date): string {
+  return `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(
+    date.getDate()
+  )}`;
+}
+
+function formatTimeInput(date: Date): string {
+  return `${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
+}
+
+function getDefaultScheduleDate(category: TaskCategory): Date {
   const target = new Date();
   if (category === "Daily") {
     target.setDate(target.getDate() + 1);
-    target.setHours(0, 0, 0, 0);
-    return target.toISOString();
+    target.setHours(9, 0, 0, 0);
+    return target;
   }
   if (category === "Weekly") {
     target.setDate(target.getDate() + 7);
-    target.setHours(0, 0, 0, 0);
-    return target.toISOString();
+    target.setHours(9, 0, 0, 0);
+    return target;
   }
   if (category === "Monthly") {
     target.setMonth(target.getMonth() + 1);
-    target.setHours(0, 0, 0, 0);
-    return target.toISOString();
+    target.setHours(9, 0, 0, 0);
+    return target;
   }
-  return target.toISOString();
+  return target;
+}
+
+function parseScheduleInputs(dateStr: string, timeStr: string): Date | null {
+  const dateMatch = dateStr.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const timeMatch = timeStr.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!dateMatch || !timeMatch) return null;
+
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day ||
+    parsed.getHours() !== hour ||
+    parsed.getMinutes() !== minute
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function formatSchedulePreview(date: Date): string {
+  return date.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export const CreateTaskModal = ({
@@ -57,6 +109,9 @@ export const CreateTaskModal = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<TaskCategory>("Daily");
+  const [notifyDate, setNotifyDate] = useState("");
+  const [notifyTime, setNotifyTime] = useState("");
+  const [hasCustomSchedule, setHasCustomSchedule] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,14 +122,44 @@ export const CreateTaskModal = ({
       setTitle(editingTask.title);
       setDescription(editingTask.description || "");
       setCategory(editingTask.category);
+      const existing = editingTask.scheduledAt
+        ? new Date(editingTask.scheduledAt)
+        : null;
+      const baseDate =
+        existing && !isNaN(existing.getTime())
+          ? existing
+          : getDefaultScheduleDate(editingTask.category);
+      setNotifyDate(formatDateInput(baseDate));
+      setNotifyTime(formatTimeInput(baseDate));
+      setHasCustomSchedule(true);
     } else {
+      const initialCategory = defaultCategory || "Daily";
+      const defaultDate = getDefaultScheduleDate(initialCategory);
       setTitle("");
       setDescription("");
-      setCategory(defaultCategory || "Daily");
+      setCategory(initialCategory);
+      setNotifyDate(formatDateInput(defaultDate));
+      setNotifyTime(formatTimeInput(defaultDate));
+      setHasCustomSchedule(false);
     }
   }, [visible, editingTask, defaultCategory]);
 
   const isNoteMode = category === "Note";
+  const parsedSchedule = isNoteMode
+    ? null
+    : parseScheduleInputs(notifyDate, notifyTime);
+  const isScheduleInPast = Boolean(
+    parsedSchedule && parsedSchedule.getTime() <= Date.now()
+  );
+
+  const handleSelectCategory = (nextCategory: TaskCategory) => {
+    setCategory(nextCategory);
+    if (!editingTask && !hasCustomSchedule && nextCategory !== "Note") {
+      const nextDefault = getDefaultScheduleDate(nextCategory);
+      setNotifyDate(formatDateInput(nextDefault));
+      setNotifyTime(formatTimeInput(nextDefault));
+    }
+  };
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -82,13 +167,43 @@ export const CreateTaskModal = ({
       return;
     }
 
-    const scheduledAt =
-      editingTask &&
-      editingTask.category === category &&
-      editingTask.scheduledAt &&
-      !isNaN(new Date(editingTask.scheduledAt).getTime())
-        ? editingTask.scheduledAt
-        : getCategoryScheduledAt(category);
+    let scheduledAt: string;
+
+    if (isNoteMode) {
+      scheduledAt =
+        editingTask?.scheduledAt &&
+        !isNaN(new Date(editingTask.scheduledAt).getTime())
+          ? editingTask.scheduledAt
+          : new Date().toISOString();
+    } else {
+      const parsed = parseScheduleInputs(notifyDate, notifyTime);
+      if (!parsed) {
+        setErrorMessage(
+          "Enter a valid notification date (YYYY-MM-DD) and 24h time (HH:MM)."
+        );
+        return;
+      }
+
+      const originalDate = editingTask?.scheduledAt
+        ? new Date(editingTask.scheduledAt)
+        : null;
+      const scheduleUnchanged = Boolean(
+        originalDate &&
+          !isNaN(originalDate.getTime()) &&
+          formatDateInput(originalDate) === notifyDate.trim() &&
+          formatTimeInput(originalDate) === notifyTime.trim()
+      );
+
+      if ((!editingTask || !scheduleUnchanged) && parsed.getTime() <= Date.now()) {
+        setErrorMessage("Push notification time must be in the future.");
+        return;
+      }
+
+      scheduledAt =
+        scheduleUnchanged && editingTask
+          ? editingTask.scheduledAt
+          : parsed.toISOString();
+    }
 
     onSubmit(
       {
@@ -169,7 +284,7 @@ export const CreateTaskModal = ({
                     return (
                       <TouchableOpacity
                         key={cat}
-                        onPress={() => setCategory(cat)}
+                        onPress={() => handleSelectCategory(cat)}
                         style={
                           isSelected ? styles.categoryActive : styles.categoryInactive
                         }
@@ -244,8 +359,96 @@ export const CreateTaskModal = ({
                   numberOfLines={3}
                   textAlignVertical="top"
                   style={styles.inputField}
-                  className="rounded-xl px-4 py-3 text-white text-sm mb-4 min-h-[72px]"
+                  className="rounded-xl px-4 py-3 text-white text-sm mb-3.5 min-h-[72px]"
                 />
+
+                {/* Push Notification Date & Time Input Box */}
+                <View className="flex-row items-center mb-1.5">
+                  <View className="mr-1.5">
+                    <GalaxyIcon name="bell" size={12} color="#FF69B4" />
+                  </View>
+                  <Text className="text-xs font-bold uppercase tracking-wider text-[#FFB6C1]">
+                    Push Notification Time *
+                  </Text>
+                </View>
+                <View style={styles.scheduleCard} className="rounded-2xl p-3 mb-4">
+                  <View className="flex-row">
+                    <View className="flex-1 mr-2">
+                      <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4] mb-1">
+                        Date (YYYY-MM-DD)
+                      </Text>
+                      <View
+                        style={styles.inputField}
+                        className="rounded-xl px-3 py-2 flex-row items-center"
+                      >
+                        <View className="mr-2">
+                          <GalaxyIcon name="calendar" size={13} color="#FF69B4" />
+                        </View>
+                        <TextInput
+                          value={notifyDate}
+                          onChangeText={(val: string) => {
+                            setNotifyDate(val);
+                            setHasCustomSchedule(true);
+                            if (errorMessage) setErrorMessage(null);
+                          }}
+                          placeholder="YYYY-MM-DD"
+                          placeholderTextColor="#8A3B68"
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={10}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          className="flex-1 text-white text-sm p-0"
+                        />
+                      </View>
+                    </View>
+
+                    <View className="w-32">
+                      <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4] mb-1">
+                        Time (24h HH:MM)
+                      </Text>
+                      <View
+                        style={styles.inputField}
+                        className="rounded-xl px-3 py-2 flex-row items-center"
+                      >
+                        <View className="mr-2">
+                          <GalaxyIcon name="clock" size={13} color="#FF69B4" />
+                        </View>
+                        <TextInput
+                          value={notifyTime}
+                          onChangeText={(val: string) => {
+                            setNotifyTime(val);
+                            setHasCustomSchedule(true);
+                            if (errorMessage) setErrorMessage(null);
+                          }}
+                          placeholder="09:00"
+                          placeholderTextColor="#8A3B68"
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={5}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          className="flex-1 text-white text-sm p-0"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Live Notification Schedule Preview */}
+                  <Text
+                    className={`text-[11px] mt-2 ${
+                      !parsedSchedule || isScheduleInPast
+                        ? "text-[#FF69B4]"
+                        : "text-[#FFB6C1]/85"
+                    }`}
+                  >
+                    {!parsedSchedule
+                      ? "Use YYYY-MM-DD and 24-hour HH:MM format."
+                      : isScheduleInPast
+                      ? editingTask
+                        ? "Past time — update to reschedule push notification."
+                        : "Pick a future date & time to trigger push notification."
+                      : `Push alert scheduled for ${formatSchedulePreview(parsedSchedule)}`}
+                  </Text>
+                </View>
               </>
             )}
 
@@ -308,6 +511,11 @@ const styles = StyleSheet.create({
   },
   inputField: {
     backgroundColor: "#000000",
+    borderWidth: 1,
+    borderColor: "#2E1122",
+  },
+  scheduleCard: {
+    backgroundColor: "#140710",
     borderWidth: 1,
     borderColor: "#2E1122",
   },

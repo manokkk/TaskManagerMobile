@@ -6,6 +6,7 @@ import { getNotePreviewSummary } from "../utils/noteDocument";
 interface TaskCardProps {
   task: Task;
   isProcessing?: boolean;
+  endOfDayExp?: boolean;
   onToggleStatus: (task: Task) => void;
   onEdit: (task: Task) => void;
   onOpenNote?: (task: Task) => void;
@@ -17,15 +18,18 @@ interface TaskCardProps {
 function formatScheduledDateTime(isoString: string): string {
   const date = new Date(isoString);
   if (isNaN(date.getTime())) return "Unscheduled";
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
 export const TaskCard = ({
   task,
   isProcessing = false,
+  endOfDayExp = false,
   onToggleStatus,
   onEdit,
   onOpenNote,
@@ -208,7 +212,9 @@ export const TaskCard = ({
           {task.expReward > 0 && (
             <Text className="text-[10px] font-bold uppercase tracking-wider text-[#FF69B4]">
               {isDone
-                ? `Claimed +${task.expReward} EXP`
+                ? endOfDayExp
+                  ? `Done • +${task.expReward} EXP at EOD`
+                  : `Claimed +${task.expReward} EXP`
                 : `Complete for +${task.expReward} EXP`}
             </Text>
           )}

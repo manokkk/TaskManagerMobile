@@ -318,8 +318,8 @@ function GalaxyQuestMain({
         currentTab === "notes"
           ? ("Note" as CategoryFilterValue)
           : currentTab === "tasks" && selectedCategory === "Note"
-          ? ("All" as CategoryFilterValue)
-          : selectedCategory,
+            ? ("All" as CategoryFilterValue)
+            : selectedCategory,
       status: currentTab === "notes" ? ("All" as StatusFilterValue) : selectedStatus,
       search: currentTab === "notes" ? "" : searchQuery,
     }),
@@ -372,6 +372,56 @@ function GalaxyQuestMain({
   // Re-fetch authoritative state from backend whenever filter/search changes
   useEffect(() => {
     syncWithBackend();
+  }, [syncWithBackend]);
+
+  // Automatically settle end-of-day EXP & uncheck completed tasks when the local day rolls over
+  useEffect(() => {
+    const getLocalDayKey = () => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+        now.getDate()
+      ).padStart(2, "0")}`;
+    };
+
+    let lastDayKey = getLocalDayKey();
+    let midnightTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleMidnightRollover = () => {
+      const now = new Date();
+      const nextMidnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        0,
+        0,
+        0,
+        500
+      );
+      const delayMs = Math.max(1000, nextMidnight.getTime() - now.getTime());
+
+      midnightTimer = setTimeout(() => {
+        lastDayKey = getLocalDayKey();
+        syncWithBackend();
+        scheduleMidnightRollover();
+      }, delayMs);
+    };
+
+    scheduleMidnightRollover();
+
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        const currentDayKey = getLocalDayKey();
+        if (currentDayKey !== lastDayKey) {
+          lastDayKey = currentDayKey;
+          syncWithBackend();
+        }
+      }
+    });
+
+    return () => {
+      if (midnightTimer) clearTimeout(midnightTimer);
+      appStateSub.remove();
+    };
   }, [syncWithBackend]);
 
   const handleSaveTask = useCallback(
@@ -695,25 +745,25 @@ function GalaxyQuestMain({
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {(currentTab === "all"
                 ? ([
-                    { key: "All", label: "All", count: serverState.counts.All },
-                    { key: "Daily", label: "Daily", count: serverState.counts.Daily },
-                    { key: "Weekly", label: "Weekly", count: serverState.counts.Weekly },
-                    { key: "Monthly", label: "Monthly", count: serverState.counts.Monthly },
-                    { key: "Note", label: "Notes", count: serverState.counts.Note || 0 },
-                  ] as const)
+                  { key: "All", label: "All", count: serverState.counts.All },
+                  { key: "Daily", label: "Daily", count: serverState.counts.Daily },
+                  { key: "Weekly", label: "Weekly", count: serverState.counts.Weekly },
+                  { key: "Monthly", label: "Monthly", count: serverState.counts.Monthly },
+                  { key: "Note", label: "Notes", count: serverState.counts.Note || 0 },
+                ] as const)
                 : ([
-                    {
-                      key: "All",
-                      label: "All",
-                      count:
-                        serverState.counts.Daily +
-                        serverState.counts.Weekly +
-                        serverState.counts.Monthly,
-                    },
-                    { key: "Daily", label: "Daily", count: serverState.counts.Daily },
-                    { key: "Weekly", label: "Weekly", count: serverState.counts.Weekly },
-                    { key: "Monthly", label: "Monthly", count: serverState.counts.Monthly },
-                  ] as const)
+                  {
+                    key: "All",
+                    label: "All",
+                    count:
+                      serverState.counts.Daily +
+                      serverState.counts.Weekly +
+                      serverState.counts.Monthly,
+                  },
+                  { key: "Daily", label: "Daily", count: serverState.counts.Daily },
+                  { key: "Weekly", label: "Weekly", count: serverState.counts.Weekly },
+                  { key: "Monthly", label: "Monthly", count: serverState.counts.Monthly },
+                ] as const)
               ).map((cat) => {
                 const isSelected = selectedCategory === cat.key;
                 return (
@@ -729,9 +779,8 @@ function GalaxyQuestMain({
                     activeOpacity={0.7}
                   >
                     <Text
-                      className={`text-xs font-bold ${
-                        isSelected ? "text-black font-black" : "text-[#FFB6C1]"
-                      }`}
+                      className={`text-xs font-bold ${isSelected ? "text-black font-black" : "text-[#FFB6C1]"
+                        }`}
                     >
                       {cat.label}
                     </Text>
@@ -745,9 +794,8 @@ function GalaxyQuestMain({
                         className="ml-1.5 px-1.5 py-0.2 rounded-full"
                       >
                         <Text
-                          className={`text-[9px] font-black ${
-                            isSelected ? "text-white" : "text-[#FF69B4]"
-                          }`}
+                          className={`text-[9px] font-black ${isSelected ? "text-white" : "text-[#FF69B4]"
+                            }`}
                         >
                           {cat.count}
                         </Text>
@@ -759,124 +807,124 @@ function GalaxyQuestMain({
             </ScrollView>
           </View>
 
-        {/* Status Filter Pills */}
-        <View
-          style={{
-            paddingHorizontal: horizontalMargin,
-            marginTop: isSmallDevice ? 4 : 6,
-            marginBottom: isSmallDevice ? 4 : 6,
-          }}
-          className="flex-row items-center justify-between"
-        >
-          <Text className="text-[10px] font-bold uppercase tracking-widest text-[#8A3B68]">
-            Status:
-          </Text>
-          <View className="flex-row items-center">
-            {(["All", "Pending", "Done"] as StatusFilterValue[]).map((status) => {
-              const isSelected = selectedStatus === status;
-              const statusColor = isSelected ? "#FF1493" : "#8A3B68";
-              return (
-                <TouchableOpacity
-                  key={status}
-                  onPress={() => setSelectedStatus(status)}
-                  style={
-                    isSelected
-                      ? styles.activeStatusPill
-                      : styles.inactiveStatusPill
-                  }
-                  className="ml-1.5 px-3 py-1 rounded-full flex-row items-center"
-                  activeOpacity={0.7}
-                >
-                  {status === "Pending" && (
-                    <View className="mr-1">
-                      <GalaxyIcon name="clock" size={10} color={statusColor} />
-                    </View>
-                  )}
-                  {status === "Done" && (
-                    <View className="mr-1">
-                      <GalaxyIcon name="check" size={10} color={statusColor} />
-                    </View>
-                  )}
-                  <Text
-                    className={`text-[10px] font-bold uppercase tracking-wider ${
-                      isSelected ? "text-[#FF1493]" : "text-[#8A3B68]"
-                    }`}
+          {/* Status Filter Pills */}
+          <View
+            style={{
+              paddingHorizontal: horizontalMargin,
+              marginTop: isSmallDevice ? 4 : 6,
+              marginBottom: isSmallDevice ? 4 : 6,
+            }}
+            className="flex-row items-center justify-between"
+          >
+            <Text className="text-[10px] font-bold uppercase tracking-widest text-[#8A3B68]">
+              Status:
+            </Text>
+            <View className="flex-row items-center">
+              {(["All", "Pending", "Done"] as StatusFilterValue[]).map((status) => {
+                const isSelected = selectedStatus === status;
+                const statusColor = isSelected ? "#FF1493" : "#8A3B68";
+                return (
+                  <TouchableOpacity
+                    key={status}
+                    onPress={() => setSelectedStatus(status)}
+                    style={
+                      isSelected
+                        ? styles.activeStatusPill
+                        : styles.inactiveStatusPill
+                    }
+                    className="ml-1.5 px-3 py-1 rounded-full flex-row items-center"
+                    activeOpacity={0.7}
                   >
-                    {status}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Task List */}
-        <FlatList
-          data={
-            currentTab === "tasks"
-              ? serverState.tasks.filter((t) => t.category !== "Note")
-              : serverState.tasks
-          }
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TaskCard
-              task={item}
-              isProcessing={!!processingIds[item.id]}
-              onToggleStatus={handleToggleStatus}
-              onEdit={(task) => {
-                if (task.category === "Note") {
-                  setActiveNote(task);
-                } else {
-                  setEditingTask(task);
-                  setModalVisible(true);
-                }
-              }}
-              onOpenNote={(note) => setActiveNote(note)}
-              onDelete={handleDeleteTask}
-              horizontalMargin={horizontalMargin}
-              isSmallDevice={isSmallDevice}
-            />
-          )}
-          contentContainerStyle={{
-            paddingBottom: (isSmallDevice ? 85 : 95) + Math.max(bottomInset, 8),
-            paddingTop: 4,
-          }}
-          refreshControl={
-            <RefreshControl
-              refreshing={loading}
-              onRefresh={syncWithBackend}
-              tintColor="#FF1493"
-              colors={["#FF1493"]}
-            />
-          }
-          ListEmptyComponent={
-            <View className="items-center justify-center py-16 px-6">
-              <View className="mb-3">
-                <GalaxyIcon
-                  name={currentTab === "all" ? "galaxy" : "rocket"}
-                  size={36}
-                  color="#FF1493"
-                />
-              </View>
-              <Text className="text-base font-extrabold text-white">
-                {backendOnline
-                  ? currentTab === "all"
-                    ? "No Directives in Sector"
-                    : "No Missions in Sector"
-                  : "Awaiting Backend Connection"}
-              </Text>
-              <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1">
-                {!backendOnline
-                  ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline' above to configure your backend URL."
-                  : searchQuery
-                  ? `No items matching "${searchQuery}"`
-                  : currentTab === "all"
-                  ? "Tap the neon + button below to create a Task or Note."
-                  : "Tap the neon + button below to deploy a Daily, Weekly, or Monthly mission."}
-              </Text>
+                    {status === "Pending" && (
+                      <View className="mr-1">
+                        <GalaxyIcon name="clock" size={10} color={statusColor} />
+                      </View>
+                    )}
+                    {status === "Done" && (
+                      <View className="mr-1">
+                        <GalaxyIcon name="check" size={10} color={statusColor} />
+                      </View>
+                    )}
+                    <Text
+                      className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-[#FF1493]" : "text-[#8A3B68]"
+                        }`}
+                    >
+                      {status}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          }
-        />
+          </View>
+
+          {/* Task List */}
+          <FlatList
+            data={
+              currentTab === "tasks"
+                ? serverState.tasks.filter((t) => t.category !== "Note")
+                : serverState.tasks
+            }
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TaskCard
+                task={item}
+                isProcessing={!!processingIds[item.id]}
+                endOfDayExp={true}
+                onToggleStatus={handleToggleStatus}
+                onEdit={(task) => {
+                  if (task.category === "Note") {
+                    setActiveNote(task);
+                  } else {
+                    setEditingTask(task);
+                    setModalVisible(true);
+                  }
+                }}
+                onOpenNote={(note) => setActiveNote(note)}
+                onDelete={handleDeleteTask}
+                horizontalMargin={horizontalMargin}
+                isSmallDevice={isSmallDevice}
+              />
+            )}
+            contentContainerStyle={{
+              paddingBottom: (isSmallDevice ? 85 : 95) + Math.max(bottomInset, 8),
+              paddingTop: 4,
+            }}
+            refreshControl={
+              <RefreshControl
+                refreshing={loading}
+                onRefresh={syncWithBackend}
+                tintColor="#FF1493"
+                colors={["#FF1493"]}
+              />
+            }
+            ListEmptyComponent={
+              <View className="items-center justify-center py-16 px-6">
+                <View className="mb-3">
+                  <GalaxyIcon
+                    name={currentTab === "all" ? "galaxy" : "rocket"}
+                    size={36}
+                    color="#FF1493"
+                  />
+                </View>
+                <Text className="text-base font-extrabold text-white">
+                  {backendOnline
+                    ? currentTab === "all"
+                      ? "No Directives in Sector"
+                      : "No Missions in Sector"
+                    : "Awaiting Backend Connection"}
+                </Text>
+                <Text className="text-xs text-[#FFB6C1]/70 text-center mt-1">
+                  {!backendOnline
+                    ? "Start TaskManagerBackend (port 5000) or tap 'Server Offline' above to configure your backend URL."
+                    : searchQuery
+                      ? `No items matching "${searchQuery}"`
+                      : currentTab === "all"
+                        ? "Tap the neon + button below to create a Task or Note."
+                        : "Tap the neon + button below to deploy a Daily, Weekly, or Monthly mission."}
+                </Text>
+              </View>
+            }
+          />
         </View>
       )}
 
@@ -899,47 +947,47 @@ function GalaxyQuestMain({
         isSmallDevice={isSmallDevice}
       />
 
-        {/* Create / Edit Task Modal */}
-        <CreateTaskModal
-          visible={modalVisible}
-          editingTask={editingTask}
-          expRewards={serverState.metadata.expRewards}
-          defaultCategory={currentTab === "notes" ? "Note" : "Daily"}
-          noteOnly={currentTab === "notes" && !editingTask}
-          onClose={() => {
-            setModalVisible(false);
-            setEditingTask(null);
-          }}
-          onSubmit={handleSaveTask}
-        />
+      {/* Create / Edit Task Modal */}
+      <CreateTaskModal
+        visible={modalVisible}
+        editingTask={editingTask}
+        expRewards={serverState.metadata.expRewards}
+        defaultCategory={currentTab === "notes" ? "Note" : "Daily"}
+        noteOnly={currentTab === "notes" && !editingTask}
+        onClose={() => {
+          setModalVisible(false);
+          setEditingTask(null);
+        }}
+        onSubmit={handleSaveTask}
+      />
 
-        {/* Full-Screen Device-Style Notepad Editor for Notes */}
-        <NoteEditorModal
-          visible={!!resolvedActiveNote}
-          note={resolvedActiveNote}
-          onClose={() => setActiveNote(null)}
-          onSave={handleSaveNoteContent}
-          onDelete={handleDeleteTask}
-        />
+      {/* Full-Screen Device-Style Notepad Editor for Notes */}
+      <NoteEditorModal
+        visible={!!resolvedActiveNote}
+        note={resolvedActiveNote}
+        onClose={() => setActiveNote(null)}
+        onSave={handleSaveNoteContent}
+        onDelete={handleDeleteTask}
+      />
 
-        {/* RPG Rank & 1.5x Scaling Codex Modal */}
-        <RankProgressionModal
-          visible={rankModalVisible}
-          progress={serverState.progress}
-          metadata={serverState.metadata}
-          onClose={() => setRankModalVisible(false)}
-        />
+      {/* RPG Rank & 1.5x Scaling Codex Modal */}
+      <RankProgressionModal
+        visible={rankModalVisible}
+        progress={serverState.progress}
+        metadata={serverState.metadata}
+        onClose={() => setRankModalVisible(false)}
+      />
 
-        {/* Dev Backend Endpoint Configuration Modal */}
-        <DevBackendConfigModal
-          visible={apiConfigVisible}
-          eyebrow="Security & Server Authority"
-          title="Backend Endpoint"
-          subtitle="All gamification math, EXP rewards, and task mutations execute on the backend server."
-          submitLabel="Connect"
-          onClose={() => setApiConfigVisible(false)}
-          onSaved={syncWithBackend}
-        />
+      {/* Dev Backend Endpoint Configuration Modal */}
+      <DevBackendConfigModal
+        visible={apiConfigVisible}
+        eyebrow="Security & Server Authority"
+        title="Backend Endpoint"
+        subtitle="All gamification math, EXP rewards, and task mutations execute on the backend server."
+        submitLabel="Connect"
+        onClose={() => setApiConfigVisible(false)}
+        onSaved={syncWithBackend}
+      />
     </View>
   );
 }

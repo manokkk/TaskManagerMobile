@@ -125,6 +125,12 @@ export const GalaxyHeader = ({
           </Text>
           <Text className="text-xs font-semibold text-[#FFB6C1]/80">
             Total {progress.totalExp} EXP
+            {progress.pendingExp && progress.pendingExp > 0 ? (
+              <Text className="text-[#FF69B4] font-bold">
+                {" "}
+                (+{progress.pendingExp} EOD)
+              </Text>
+            ) : null}
           </Text>
         </View>
 
