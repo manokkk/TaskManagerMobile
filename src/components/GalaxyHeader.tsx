@@ -81,7 +81,7 @@ export const GalaxyHeader = ({
               isSmallDevice ? "text-xl" : "text-2xl"
             } font-black text-white tracking-tight mt-0.5`}
           >
-            GALAXY QUEST
+            NOTEQUEST
           </Text>
         </View>
 

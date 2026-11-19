@@ -271,7 +271,7 @@ export const SettingsScreen = ({
           </View>
 
           <Text className="text-center text-[10px] font-mono text-[#FFB6C1]/50 mb-2">
-            Galaxy Quest RPG • Build v1.0.0
+            NoteQuest • Build v1.0.0
           </Text>
         </View>
       </ScrollView>

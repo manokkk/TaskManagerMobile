@@ -1,4 +1,4 @@
-# Task Manager Mobile
+# NoteQuest Mobile
 
 React Native (Expo) app with TypeScript and NativeWind (Tailwind CSS).
 

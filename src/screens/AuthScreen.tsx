@@ -147,7 +147,7 @@ export const AuthScreen = ({
                 style={styles.heroTitle}
                 className={`${isSmallDevice ? "text-2xl" : "text-3xl"} font-black text-white tracking-wider`}
               >
-                GALAXY QUEST
+                NOTEQUEST
               </Text>
 
               <View className="flex-row items-center mt-1">

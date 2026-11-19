@@ -30,7 +30,7 @@ export const SessionLoadingScreen = ({
           style={styles.heroTitle}
           className="text-2xl font-black text-white tracking-wider"
         >
-          GALAXY QUEST
+          NOTEQUEST
         </Text>
 
         <View className="flex-row items-center mt-1 mb-5">
