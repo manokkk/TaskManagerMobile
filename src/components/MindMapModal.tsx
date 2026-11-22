@@ -14,6 +14,7 @@ import Svg, { Path } from "react-native-svg";
 import { NoteMindMapBlock, NoteMindMapNode } from "../types/note";
 import { createBlockId } from "../utils/noteDocument";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { FOCUS_HIGHLIGHT_STYLE } from "../hooks/useScrollToFocusedInput";
 import { GalaxyIcon } from "./GalaxyIcon";
 
 const BRANCH_COLORS = [
@@ -244,6 +245,7 @@ export const MindMapModal = ({
   const [nodes, setNodes] = useState<NoteMindMapNode[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [labelDraft, setLabelDraft] = useState("");
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -416,6 +418,7 @@ export const MindMapModal = ({
           style={styles.canvasCard}
           className="flex-1 rounded-3xl p-2 my-2"
           contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+          keyboardShouldPersistTaps="handled"
         >
           <MindMapDiagram
             nodes={nodes}
@@ -450,9 +453,14 @@ export const MindMapModal = ({
               <TextInput
                 value={labelDraft}
                 onChangeText={handleChangeLabel}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
                 placeholder="Branch text..."
                 placeholderTextColor="#8A3B68"
-                style={styles.inputField}
+                style={[
+                  styles.inputField,
+                  isInputFocused && FOCUS_HIGHLIGHT_STYLE,
+                ]}
                 className="flex-1 rounded-xl px-3.5 py-2.5 text-white text-sm mr-2"
               />
               <TouchableOpacity

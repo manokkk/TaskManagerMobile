@@ -18,6 +18,10 @@ import {
   runLocalAiAssistant,
 } from "../utils/noteDocument";
 import { GalaxyIcon } from "./GalaxyIcon";
+import {
+  FOCUS_HIGHLIGHT_STYLE,
+  useScrollToFocusedInput,
+} from "../hooks/useScrollToFocusedInput";
 
 interface AiAssistantModalProps {
   visible: boolean;
@@ -224,6 +228,13 @@ export const VoiceDictationModal = ({
   onInsertTranscript,
 }: VoiceDictationModalProps) => {
   const insets = useSafeAreaInsets();
+  const {
+    scrollViewRef,
+    focusedKey,
+    onScroll,
+    handleFocus,
+    handleBlur,
+  } = useScrollToFocusedInput({ enabled: visible, extraOffset: 32 });
   const [transcript, setTranscript] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [statusNote, setStatusNote] = useState("");
@@ -343,8 +354,15 @@ export const VoiceDictationModal = ({
             styles.sheet,
             { paddingBottom: Math.max(20, insets.bottom + 14) },
           ]}
-          className="rounded-t-3xl p-5"
+          className="rounded-t-3xl p-5 max-h-[85%]"
         >
+          <ScrollView
+            ref={scrollViewRef}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           <View className="flex-row items-center justify-between mb-3">
             <View className="flex-row items-center">
               <View
@@ -376,13 +394,18 @@ export const VoiceDictationModal = ({
             ref={transcriptInputRef}
             value={transcript}
             onChangeText={setTranscript}
+            onFocus={(e) => handleFocus("transcript", e)}
+            onBlur={() => handleBlur("transcript")}
             placeholder="Dictated text will appear here..."
             placeholderTextColor="#8A3B68"
             multiline
             numberOfLines={4}
             textAlignVertical="top"
             autoFocus
-            style={styles.transcriptInput}
+            style={[
+              styles.transcriptInput,
+              focusedKey === "transcript" && FOCUS_HIGHLIGHT_STYLE,
+            ]}
             className="rounded-2xl p-3.5 text-white text-sm mb-4 min-h-[100px]"
           />
 
@@ -415,6 +438,7 @@ export const VoiceDictationModal = ({
               </Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

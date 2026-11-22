@@ -30,6 +30,7 @@ import { TaskCard } from "./src/components/TaskCard";
 import { CreateTaskModal } from "./src/components/CreateTaskModal";
 import { NoteEditorModal } from "./src/components/NoteEditorModal";
 import { RankProgressionModal } from "./src/components/RankProgressionModal";
+import { FOCUS_HIGHLIGHT_STYLE } from "./src/hooks/useScrollToFocusedInput";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { NotesScreen } from "./src/screens/NotesScreen";
@@ -288,6 +289,7 @@ function GalaxyQuestMain({
   const [selectedStatus, setSelectedStatus] =
     useState<StatusFilterValue>("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [activeNote, setActiveNote] = useState<Task | null>(null);
@@ -706,7 +708,11 @@ function GalaxyQuestMain({
               </Text>
             </View>
             <View
-              style={[styles.searchBox, { height: isSmallDevice ? 40 : 44 }]}
+              style={[
+                styles.searchBox,
+                { height: isSmallDevice ? 40 : 44 },
+                isSearchFocused && FOCUS_HIGHLIGHT_STYLE,
+              ]}
               className="rounded-2xl px-3.5 flex-row items-center"
             >
               <View className="mr-2">
@@ -715,6 +721,8 @@ function GalaxyQuestMain({
               <TextInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
                 placeholder={
                   currentTab === "all"
                     ? "Scan all tasks & notes..."

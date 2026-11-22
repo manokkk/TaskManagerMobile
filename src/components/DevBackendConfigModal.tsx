@@ -3,6 +3,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +12,10 @@ import {
 } from "react-native";
 import { galaxyApi } from "../services/api";
 import { GalaxyIcon } from "./GalaxyIcon";
+import {
+  FOCUS_HIGHLIGHT_STYLE,
+  useScrollToFocusedInput,
+} from "../hooks/useScrollToFocusedInput";
 
 interface DevBackendConfigModalProps {
   visible: boolean;
@@ -57,6 +62,13 @@ export const DevBackendConfigModal = ({
   onSaved,
 }: DevBackendConfigModalProps) => {
   const [apiUrlInput, setApiUrlInput] = useState(galaxyApi.getBaseUrl());
+  const {
+    scrollViewRef,
+    focusedKey,
+    onScroll,
+    handleFocus,
+    handleBlur,
+  } = useScrollToFocusedInput({ enabled: visible, extraOffset: 32 });
 
   useEffect(() => {
     if (visible) {
@@ -84,9 +96,23 @@ export const DevBackendConfigModal = ({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1 justify-center items-center bg-black/85 px-6"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1 bg-black/85"
       >
+        <ScrollView
+          ref={scrollViewRef}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 24,
+            paddingVertical: 24,
+          }}
+        >
         <View style={styles.card} className="rounded-3xl p-5 w-full max-w-sm">
           <View className="flex-row items-center">
             <View className="mr-1.5">
@@ -131,10 +157,15 @@ export const DevBackendConfigModal = ({
           <TextInput
             value={apiUrlInput}
             onChangeText={setApiUrlInput}
+            onFocus={(e) => handleFocus("apiUrl", e)}
+            onBlur={() => handleBlur("apiUrl")}
             placeholder="http://localhost:5000/api"
             placeholderTextColor="#8A3B68"
             autoCapitalize="none"
-            style={styles.input}
+            style={[
+              styles.input,
+              focusedKey === "apiUrl" && FOCUS_HIGHLIGHT_STYLE,
+            ]}
             className="rounded-xl px-3.5 py-2.5 text-xs text-white mb-4 font-mono"
           />
 
@@ -153,6 +184,7 @@ export const DevBackendConfigModal = ({
             </TouchableOpacity>
           </View>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );

@@ -14,6 +14,10 @@ import { StatusBar } from "expo-status-bar";
 import { AuthUser } from "../types/task";
 import { galaxyApi } from "../services/api";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import {
+  FOCUS_HIGHLIGHT_STYLE,
+  useScrollToFocusedInput,
+} from "../hooks/useScrollToFocusedInput";
 import { GalaxyIcon } from "../components/GalaxyIcon";
 import { DevBackendConfigModal } from "../components/DevBackendConfigModal";
 
@@ -38,6 +42,15 @@ export const AuthScreen = ({
 }: AuthScreenProps) => {
   const { totalTopPadding, horizontalMargin, isSmallDevice, isTablet, maxContentWidth } =
     useResponsiveLayout();
+
+  const {
+    scrollViewRef,
+    focusedKey,
+    keyboardHeight,
+    onScroll,
+    handleFocus,
+    handleBlur,
+  } = useScrollToFocusedInput({ extraOffset: 32 });
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState("");
@@ -117,15 +130,18 @@ export const AuthScreen = ({
       <View pointerEvents="none" style={styles.starDot3} />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView
+          ref={scrollViewRef}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={{
             flexGrow: 1,
             justifyContent: "center",
             paddingTop: totalTopPadding,
-            paddingBottom: 24,
+            paddingBottom: keyboardHeight > 0 ? 32 : 24,
             paddingHorizontal: horizontalMargin,
           }}
           showsVerticalScrollIndicator={false}
@@ -290,10 +306,15 @@ export const AuthScreen = ({
                   <TextInput
                     value={username}
                     onChangeText={setUsername}
+                    onFocus={(e) => handleFocus("username", e)}
+                    onBlur={() => handleBlur("username")}
                     placeholder="e.g. Captain Nova"
                     placeholderTextColor="#8A3B68"
                     autoCapitalize="words"
-                    style={styles.inputBox}
+                    style={[
+                      styles.inputBox,
+                      focusedKey === "username" && FOCUS_HIGHLIGHT_STYLE,
+                    ]}
                     className="rounded-2xl px-4 py-3 text-sm text-white font-medium"
                   />
                 </View>
@@ -312,11 +333,16 @@ export const AuthScreen = ({
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
+                  onFocus={(e) => handleFocus("email", e)}
+                  onBlur={() => handleBlur("email")}
                   placeholder="commander@galaxy.space"
                   placeholderTextColor="#8A3B68"
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  style={styles.inputBox}
+                  style={[
+                    styles.inputBox,
+                    focusedKey === "email" && FOCUS_HIGHLIGHT_STYLE,
+                  ]}
                   className="rounded-2xl px-4 py-3 text-sm text-white font-mono"
                 />
               </View>
@@ -344,11 +370,16 @@ export const AuthScreen = ({
                 <TextInput
                   value={password}
                   onChangeText={setPassword}
+                  onFocus={(e) => handleFocus("password", e)}
+                  onBlur={() => handleBlur("password")}
                   placeholder="Minimum 6 characters"
                   placeholderTextColor="#8A3B68"
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
-                  style={styles.inputBox}
+                  style={[
+                    styles.inputBox,
+                    focusedKey === "password" && FOCUS_HIGHLIGHT_STYLE,
+                  ]}
                   className="rounded-2xl px-4 py-3 text-sm text-white font-mono"
                 />
               </View>

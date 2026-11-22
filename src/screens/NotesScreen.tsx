@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Task } from "../types/task";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { FOCUS_HIGHLIGHT_STYLE } from "../hooks/useScrollToFocusedInput";
 import { GalaxyIcon } from "../components/GalaxyIcon";
 import { getNotePlainText, getNotePreviewSummary } from "../utils/noteDocument";
 
@@ -44,6 +45,7 @@ export const NotesScreen = ({
     useResponsiveLayout();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const filteredNotes = notes.filter((n) => {
     if (!searchQuery.trim()) return true;
@@ -123,7 +125,11 @@ export const NotesScreen = ({
         {/* Search Bar */}
         <View style={{ paddingHorizontal: horizontalMargin, marginBottom: 8 }}>
           <View
-            style={[styles.searchBox, { height: isSmallDevice ? 40 : 44 }]}
+            style={[
+              styles.searchBox,
+              { height: isSmallDevice ? 40 : 44 },
+              isSearchFocused && FOCUS_HIGHLIGHT_STYLE,
+            ]}
             className="rounded-2xl px-3.5 flex-row items-center"
           >
             <View className="mr-2">
@@ -132,6 +138,8 @@ export const NotesScreen = ({
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
               placeholder="Search through notes & memos..."
               placeholderTextColor="#8A3B68"
               className="flex-1 text-xs text-white p-0"

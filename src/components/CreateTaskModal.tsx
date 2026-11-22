@@ -13,6 +13,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Task, TaskCategory, TaskInput } from "../types/task";
 import { GalaxyIcon } from "./GalaxyIcon";
+import {
+  FOCUS_HIGHLIGHT_STYLE,
+  useScrollToFocusedInput,
+} from "../hooks/useScrollToFocusedInput";
 
 interface CreateTaskModalProps {
   visible: boolean;
@@ -106,6 +110,14 @@ export const CreateTaskModal = ({
   onSubmit,
 }: CreateTaskModalProps) => {
   const insets = useSafeAreaInsets();
+  const {
+    scrollViewRef,
+    focusedKey,
+    keyboardHeight,
+    onScroll,
+    handleFocus,
+    handleBlur,
+  } = useScrollToFocusedInput({ enabled: visible, extraOffset: 36 });
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<TaskCategory>("Daily");
@@ -240,7 +252,16 @@ export const CreateTaskModal = ({
           ]}
           className="rounded-t-3xl p-6 max-h-[90%]"
         >
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={scrollViewRef}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingBottom: keyboardHeight > 0 ? 24 : 4,
+            }}
+          >
             {/* Header */}
             <View className="flex-row items-center justify-between mb-4">
               <View>
@@ -321,6 +342,8 @@ export const CreateTaskModal = ({
                 setTitle(val);
                 if (errorMessage) setErrorMessage(null);
               }}
+              onFocus={(e) => handleFocus("title", e)}
+              onBlur={() => handleBlur("title")}
               placeholder={
                 isNoteMode
                   ? "e.g. Project Ideas, Meeting Notes..."
@@ -328,7 +351,10 @@ export const CreateTaskModal = ({
               }
               placeholderTextColor="#8A3B68"
               autoFocus={noteOnly && !editingTask}
-              style={styles.inputField}
+              style={[
+                styles.inputField,
+                focusedKey === "title" && FOCUS_HIGHLIGHT_STYLE,
+              ]}
               className="rounded-xl px-4 py-3 text-white text-sm mb-3.5"
             />
 
@@ -353,12 +379,17 @@ export const CreateTaskModal = ({
                 <TextInput
                   value={description}
                   onChangeText={setDescription}
+                  onFocus={(e) => handleFocus("description", e)}
+                  onBlur={() => handleBlur("description")}
                   placeholder="Add coordinates, checklists, or mission context..."
                   placeholderTextColor="#8A3B68"
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
-                  style={styles.inputField}
+                  style={[
+                    styles.inputField,
+                    focusedKey === "description" && FOCUS_HIGHLIGHT_STYLE,
+                  ]}
                   className="rounded-xl px-4 py-3 text-white text-sm mb-3.5 min-h-[72px]"
                 />
 
@@ -378,7 +409,10 @@ export const CreateTaskModal = ({
                         Date (YYYY-MM-DD)
                       </Text>
                       <View
-                        style={styles.inputField}
+                        style={[
+                          styles.inputField,
+                          focusedKey === "notifyDate" && FOCUS_HIGHLIGHT_STYLE,
+                        ]}
                         className="rounded-xl px-3 py-2 flex-row items-center"
                       >
                         <View className="mr-2">
@@ -391,6 +425,8 @@ export const CreateTaskModal = ({
                             setHasCustomSchedule(true);
                             if (errorMessage) setErrorMessage(null);
                           }}
+                          onFocus={(e) => handleFocus("notifyDate", e)}
+                          onBlur={() => handleBlur("notifyDate")}
                           placeholder="YYYY-MM-DD"
                           placeholderTextColor="#8A3B68"
                           keyboardType="numbers-and-punctuation"
@@ -407,7 +443,10 @@ export const CreateTaskModal = ({
                         Time (24h HH:MM)
                       </Text>
                       <View
-                        style={styles.inputField}
+                        style={[
+                          styles.inputField,
+                          focusedKey === "notifyTime" && FOCUS_HIGHLIGHT_STYLE,
+                        ]}
                         className="rounded-xl px-3 py-2 flex-row items-center"
                       >
                         <View className="mr-2">
@@ -420,6 +459,8 @@ export const CreateTaskModal = ({
                             setHasCustomSchedule(true);
                             if (errorMessage) setErrorMessage(null);
                           }}
+                          onFocus={(e) => handleFocus("notifyTime", e)}
+                          onBlur={() => handleBlur("notifyTime")}
                           placeholder="09:00"
                           placeholderTextColor="#8A3B68"
                           keyboardType="numbers-and-punctuation"

@@ -37,6 +37,7 @@ import {
   serializeNoteDocument,
 } from "../utils/noteDocument";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { useScrollToFocusedInput } from "../hooks/useScrollToFocusedInput";
 import { GalaxyIcon } from "./GalaxyIcon";
 import { DrawingCanvasModal } from "./DrawingCanvasModal";
 import { MindMapDiagram, MindMapModal } from "./MindMapModal";
@@ -158,6 +159,18 @@ export const NoteEditorModal = ({
   const isSavingRef = useRef(false);
   const isMountedRef = useRef(true);
   const scrollViewRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const {
+    focusedKey,
+    keyboardHeight,
+    onScroll,
+    handleFocus,
+    handleBlur,
+    ensureFocusedVisible,
+  } = useScrollToFocusedInput({
+    scrollViewRef,
+    enabled: visible,
+    extraOffset: showFormatBar ? 120 : 76,
+  });
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -922,10 +935,12 @@ export const NoteEditorModal = ({
             {/* Scrollable Note Sheet */}
             <ScrollView
               ref={scrollViewRef}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
               className="flex-1"
               contentContainerStyle={{
                 paddingHorizontal: horizontalMargin,
-                paddingBottom: 28,
+                paddingBottom: keyboardHeight > 0 ? 48 : 28,
               }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
@@ -938,12 +953,21 @@ export const NoteEditorModal = ({
                   setTitle(val);
                   if (errorMessage) setErrorMessage(null);
                 }}
+                onFocus={(e) => handleFocus("note_title", e)}
+                onBlur={() => handleBlur("note_title")}
+                onContentSizeChange={ensureFocusedVisible}
                 placeholder="Title"
                 placeholderTextColor="#5C4B55"
                 multiline
                 maxLength={160}
                 selectionColor="#FF1493"
-                style={styles.titleInput}
+                style={[
+                  styles.titleInput,
+                  focusedKey === "note_title" && {
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#FF1493",
+                  },
+                ]}
               />
 
               {/* Timestamp | Character Count Metadata Row (matching screenshot) */}
@@ -981,7 +1005,13 @@ export const NoteEditorModal = ({
                     <View key={block.id} className="mb-2">
                       <TextInput
                         value={block.content}
-                        onFocus={() => setActiveTextBlockId(block.id)}
+                        onFocus={(e) =>
+                          handleFocus(`text_${block.id}`, e, () =>
+                            setActiveTextBlockId(block.id)
+                          )
+                        }
+                        onBlur={() => handleBlur(`text_${block.id}`)}
+                        onContentSizeChange={ensureFocusedVisible}
                         onChangeText={(val) => handleTextChange(block.id, val)}
                         placeholder={
                           index === 0 ? "Start typing" : "Continue writing..."
@@ -1065,6 +1095,12 @@ export const NoteEditorModal = ({
 
                           <TextInput
                             value={item.text}
+                            onFocus={(e) =>
+                              handleFocus(`chk_${block.id}_${item.id}`, e)
+                            }
+                            onBlur={() =>
+                              handleBlur(`chk_${block.id}_${item.id}`)
+                            }
                             onChangeText={(txt) =>
                               handleChangeChecklistItemText(
                                 block.id,
@@ -1081,6 +1117,10 @@ export const NoteEditorModal = ({
                             style={[
                               styles.chkInput,
                               item.checked && styles.chkInputDone,
+                              focusedKey === `chk_${block.id}_${item.id}` && {
+                                borderBottomWidth: 1,
+                                borderBottomColor: "#FF1493",
+                              },
                             ]}
                             className="flex-1 text-sm py-0.5 mr-2"
                           />
